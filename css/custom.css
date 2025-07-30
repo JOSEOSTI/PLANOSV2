@@ -1,0 +1,244 @@
+        #fp-canvas-container {
+            height: 90vh;
+            width: calc(100%);
+            position: relative;
+        }
+
+        #fp-canvas-container2 {
+            height: 90vh;
+            width: calc(100%);
+            position: relative;
+        }
+
+        #fp-canvas-container3 {
+            height: 90vh;
+            width: calc(100%);
+            position: relative;
+        }
+
+        #fp-canvas-container4 {
+            height: 90vh;
+            width: calc(100%);
+            position: relative;
+        }
+
+        .fp-img,
+        .fp-canvas,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        .fp-img2,
+        .fp-canvas2,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        .fp-img3,
+        .fp-canvas,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        .fp-img4,
+        .fp-canvas2,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+
+
+
+        .fp-img,
+        .fp-canvas3,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        .fp-img2,
+        .fp-canvas4,
+        .fp-canvas-2 {
+            position: absolute;
+            width: calc(100%);
+            height: calc(100%);
+            top: 0;
+            left: 0;
+            z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        #fp-map {
+            position: absolute;
+            /* width: calc(100%);
+            height: calc(100%); */
+            width: auto;
+            height: auto;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #fp-map2 {
+            position: absolute;
+            /* width: calc(100%);
+            height: calc(100%); */
+            width: auto;
+            height: auto;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #fp-map3 {
+            position: absolute;
+            /* width: calc(100%);
+            height: calc(100%); */
+            width: auto;
+            height: auto;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #fp-map4 {
+            position: absolute;
+            /* width: calc(100%);
+            height: calc(100%); */
+            width: auto;
+            height: auto;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .fp-canvas {
+            z-index: 2;
+            background: #0000000d;
+            cursor: crosshair;
+        }
+
+        .fp-canvas2 {
+            z-index: 2;
+            background: #0000000d;
+            cursor: crosshair;
+        }
+
+        .fp-canvas3 {
+            z-index: 2;
+            background: #0000000d;
+            cursor: crosshair;
+        }
+
+        .fp-canvas4 {
+            z-index: 2;
+            background: #0000000d;
+            cursor: crosshair;
+        }
+
+
+        #fp-map {
+            z-index: 2;
+        }
+
+        #fp-map2 {
+            z-index: 2;
+        }
+
+        #fp-map3 {
+            z-index: 2;
+        }
+
+        #fp-map4 {
+            z-index: 2;
+        }
+
+        area {
+            position: absolute;
+        }
+
+        area:hover {
+            background: #cbcbcb0f;
+        }
+
+        #save,
+        #cancel {
+            display: none;
+        }
+
+
+        .swal2-icon.swal2-info {
+            border-color: #90AFB6;
+            color: #90AFB6;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            /* Más alto que cualquier otra capa */
+            display: flex;
+            flex-direction: column;
+            /* O 'row' si quieres horizontal */
+            gap: 5px;
+        }
+
+        .zoom-controls button {
+            width: 60px;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .fp-zoom-wrapper {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+
+        .fp-img,
+        .fp-img2,
+        .fp-img3,
+        .fp-img4 {
+            display: block;
+            max-width: none;
+            pointer-events: none;
+            /* Para que el mousedown no se coma el drag */
+        }

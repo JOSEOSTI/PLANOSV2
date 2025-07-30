@@ -1,0 +1,3 @@
+Version 0.0.1 ==== 3 abril 2023 (Solucion en planos Mixto)
+Version 0.0.2 ==== 10 abril 2023 (Solucion en planos)
+Version 0.0.3 ==== 28 julio 2025 (Solucion en planos)
