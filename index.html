@@ -19,91 +19,77 @@
 <body>
 
     <!-- TU HTML SIN CAMBIOS (excepto cierre extra de </div>) -->
-    <div class="container-xxl py-3" id="page-container">
-        <div class="content" id="contenido_div">
-            <div class="row my-2">
-                <div class="col-md-12">
-                    <button class="btn btn-primary" type="button" id="map_area"
-                        style="background-color: #6B949D; color:#ffff; display: none;">
-                        Trabajar Plano
-                    </button>
-                    <select class="form-select" aria-label="Default select example" id="secciones" name="secciones"
-                        style="width: 15%; display: none;"></select>
-                    <button class="btn btn-primary" type="button" id="add_seccion"
-                        style="background-color: #6B949D; color:#ffff; display: none;">
-                        <i class="fa-solid fa-plus"></i>&nbsp;Agregar Secciones
-                    </button>
-                    <button class="btn btn-primary" type="button" id="save"
-                        style="background-color: #6B949D; color:#ffff; display: none;">
-                        Crear Ubicación
-                    </button>
-                </div>
+    <div class="container-xl" id="page-container">
+        <div class="row my-2">
+            <div class="col-md-12">
+                <button class="btn btn-primary" type="button" id="map_area"
+                    style="background-color: #6B949D; color:#ffff; display: none;">
+                    Trabajar Plano
+                </button>
+                <select class="form-select" aria-label="Default select example" id="secciones" name="secciones"
+                    style="width: 15%; display: none;"></select>
+                <button class="btn btn-primary" type="button" id="add_seccion"
+                    style="background-color: #6B949D; color:#ffff; display: none;">
+                    <i class="fa-solid fa-plus"></i>&nbsp;Agregar Secciones
+                </button>
+                <button class="btn btn-primary" type="button" id="save"
+                    style="background-color: #6B949D; color:#ffff; display: none;">
+                    Crear Ubicación
+                </button>
             </div>
+        </div>
 
-            <!-- Contenedor diagrama -->
-            <div id="fp-canvas-container" class="fp-canvas-container"
-                style="overflow: hidden; position: relative; height: 90vh;">
-                <div class="fp-zoom-wrapper" id="fp-wrapper">
-                    <map name="fp-map" id="fp-map"></map>
-                    <img src="" class="img-fluid fp-img" id="fp-img" usemap="#fp-map">
-                    <canvas class="fp-canvas d-none" id="fp-canvas"></canvas>
-                </div>
-                <!-- <div class="zoom-controls mt-2">
-                    <button id="zoom-in" class="btn btn-sm btn-secondary">Zoom +</button>
-                    <button id="zoom-out" class="btn btn-sm btn-secondary">Zoom -</button>
-                </div> -->
+        <!-- Contenedor diagrama -->
+        <div id="fp-canvas-container" class="fp-canvas-container"
+            style="overflow: hidden; position: relative; height: 90vh;">
+            <div class="fp-zoom-wrapper" id="fp-wrapper" data-scale="1" data-x="0" data-y="0" style="transform-origin: 0 0;">
+                <map name="fp-map" id="fp-map"></map>
+                <img src="" class="img-fluid fp-img" id="fp-img" usemap="#fp-map">
+                <canvas class="fp-canvas d-none" id="fp-canvas"></canvas>
             </div>
+            <!-- 🔔 Badge de zoom (nuevo) -->
+            <div id="zoom-indicator-diagrama" class="zoom-indicator">Zoom: 100%</div>
+        </div>
 
-            <!-- Contenedor fotografia -->
-            <div id="fp-canvas-container2" class="fp-canvas-container"
-                style="overflow: hidden; position: relative; height: 90vh;">
-                <div class="fp-zoom-wrapper" id="fp-wrapper2">
-                    <map name="fp-map2" id="fp-map2"></map>
-                    <img src="" class="img-fluid fp-img2" id="fp-img2" usemap="#fp-map2">
-                    <canvas class="fp-canvas2 d-none" id="fp-canvas2"></canvas>
-                </div>
-                <!-- <div class="zoom-controls mt-2">
-                    <button id="zoom-in2" class="btn btn-sm btn-secondary">Zoom +</button>
-                    <button id="zoom-out2" class="btn btn-sm btn-secondary">Zoom -</button>
-                </div> -->
+        <!-- Contenedor fotografia -->
+        <div id="fp-canvas-container2" class="fp-canvas-container"
+            style="overflow: hidden; position: relative; height: 90vh;">
+            <div class="fp-zoom-wrapper" id="fp-wrapper2" data-scale="1" data-x="0" data-y="0" style="transform-origin: 0 0;">
+                <map name="fp-map2" id="fp-map2"></map>
+                <img src="" class="img-fluid fp-img2" id="fp-img2" usemap="#fp-map2">
+                <canvas class="fp-canvas2 d-none" id="fp-canvas2"></canvas>
             </div>
+            <div id="zoom-indicator-fotografia" class="zoom-indicator">Zoom: 100%</div>
+        </div>
 
-            <!-- Contenedor Mixto (3 y 4 en fila) -->
-            <div class="row justify-content-around mt-3" id="pl_mixto">
-                <!-- Contenedor 3 -->
-                <div class="col-6">
-                    <div id="fp-canvas-container3" class="fp-canvas-container"
-                        style="overflow: hidden; position: relative; height: 90vh;">
-                        <div class="fp-zoom-wrapper" id="fp-wrapper3">
-                            <map name="fp-map3" id="fp-map3"></map>
-                            <img src="" class="img-fluid fp-img3" id="fp-img3" usemap="#fp-map3">
-                            <canvas class="fp-canvas3 d-none" id="fp-canvas3"></canvas>
-                        </div>
-                        <!-- <div class="zoom-controls mt-2">
-                            <button id="zoom-in3" class="btn btn-sm btn-secondary">Zoom +</button>
-                            <button id="zoom-out3" class="btn btn-sm btn-secondary">Zoom -</button>
-                        </div> -->
+        <!-- Contenedor Mixto (3 y 4 en fila) -->
+        <div class="row justify-content-around mt-3" id="pl_mixto">
+            <!-- Contenedor 3 -->
+            <div class="col-6">
+                <div id="fp-canvas-container3" class="fp-canvas-container"
+                    style="overflow: hidden; position: relative; height: 90vh;">
+                    <div class="fp-zoom-wrapper" id="fp-wrapper3">
+                        <map name="fp-map3" id="fp-map3"></map>
+                        <img src="" class="img-fluid fp-img3" id="fp-img3" usemap="#fp-map3">
+                        <canvas class="fp-canvas3 d-none" id="fp-canvas3"></canvas>
                     </div>
                 </div>
+            </div>
 
-                <!-- Contenedor 4 -->
-                <div class="col-6">
-                    <div id="fp-canvas-container4" class="fp-canvas-container"
-                        style="overflow: hidden; position: relative; height: 90vh;">
-                        <div class="fp-zoom-wrapper" id="fp-wrapper4">
-                            <map name="fp-map4" id="fp-map4"></map>
-                            <img src="" class="img-fluid fp-img4" id="fp-img4" usemap="#fp-map4">
-                            <canvas class="fp-canvas4 d-none" id="fp-canvas4"></canvas>
-                        </div>
-                        <!-- <div class="zoom-controls mt-2">
-                            <button id="zoom-in4" class="btn btn-sm btn-secondary">Zoom +</button>
-                            <button id="zoom-out4" class="btn btn-sm btn-secondary">Zoom -</button>
-                        </div> -->
+            <!-- Contenedor 4 -->
+            <div class="col-6">
+                <div id="fp-canvas-container4" class="fp-canvas-container"
+                    style="overflow: hidden; position: relative; height: 90vh;">
+                    <div class="fp-zoom-wrapper" id="fp-wrapper4">
+                        <map name="fp-map4" id="fp-map4"></map>
+                        <img src="" class="img-fluid fp-img4" id="fp-img4" usemap="#fp-map4">
+                        <canvas class="fp-canvas4 d-none" id="fp-canvas4"></canvas>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
 
     <!-- Modales (sin data-bs-dismiss en algunos) -->
     <div class="modal fade" id="form_modal" tabindex="-1">
