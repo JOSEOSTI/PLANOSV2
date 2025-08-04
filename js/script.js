@@ -275,34 +275,21 @@ $(function () {
             }
 
             localStorage.setItem('data', JSON.stringify(data_mba3));
+            var datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
+            resetAllCanvasState();
 
-            Swal.fire({
-                toast: true,
-                icon: 'success',
-                title: `Área mapeada "${data_storage.tipo_plano}" guardada con éxito`,
-                position: 'top',
-                showConfirmButton: false,
-                timer: 1500,
-                timerProgressBar: true,
-                didOpen: (toast) => {
-                    toast.addEventListener('mouseenter', Swal.stopTimer);
-                    toast.addEventListener('mouseleave', Swal.resumeTimer);
-                }
-            }).then(() => {
-                $('#mapped-form')[0].reset();
+            $('#mapped-form')[0].reset();
 
-                // Reiniciar zoomes
-                // Para diagrama
-                zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
+            // Reiniciar zoomes
+            // Para diagrama
+            zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
 
-                // Para fotografía
-                zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
+            // Para fotografía
+            zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
+            saveSeccionesCord1();
+            draw_coord(datapress);
 
-                location.reload();
-                saveSeccionesCord1();
-                resetAllCanvasState();
 
-            });
         });
 
         $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
