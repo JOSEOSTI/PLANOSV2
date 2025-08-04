@@ -289,48 +289,25 @@ $(function () {
                     toast.addEventListener('mouseleave', Swal.resumeTimer);
                 }
             }).then(() => {
-                resetAllCanvasState();
                 $('#mapped-form')[0].reset();
-                $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
 
                 // Reiniciar zoomes
-                activeZoomHandler = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
-                activeZoomHandler = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
+                // Para diagrama
+                zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
 
-                // Crear dataJson esperado por draw_coord
-                const cod_ubi = localStorage.getItem('code_ubicacion');
-                const id_corp = localStorage.getItem('id_corp');
-                const id_suc = localStorage.getItem('id_suc');
-                const selectedPlanoData = JSON.parse(localStorage.getItem('data') || '[]')[0] || {};
-                const img1 = selectedPlanoData.img1 || '';
-                const img2 = selectedPlanoData.img2 || '';
-                const dataJson = {
-                    Planograma: [
-                        {
-                            cod_ubi,
-                            coord_perc,
-                            coord_perc2,
-                            id,
-                            color: coolor_cor,
-                            tipo_plano,
-                            imagen1: img1,
-                            imagen2: img2
-                        }
-                    ],
-                    id_corp,
-                    id_suc
-                };
+                // Para fotografía
+                zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
 
-                draw_coord(dataJson);
+                location.reload();
                 saveSeccionesCord1();
+                resetAllCanvasState();
+
             });
         });
 
         $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
     });
 });
-
-// === Funciones auxiliares sin tocar lógica ===
 
 function mapped_area(data) {
     const isValid = Array.isArray(data) && data.length > 0;
@@ -631,12 +608,12 @@ function show_plane(tipo_plano) {
 
         // Inicializar / ajustar ambos zooms (puedes tener handlers separados si los necesitas)
         if (!zoomHandlers.diagrama) {
-            zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img3');
+            zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper3', '#zoom-in3', '#zoom-out3', '#fp-img3');
         } else {
             setTimeout(() => zoomHandlers.diagrama.fitToContainer(), 0);
         }
         if (!zoomHandlers.fotografia) {
-            zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img4');
+            zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper4', '#zoom-in4', '#zoom-out4', '#fp-img4');
         } else {
             setTimeout(() => zoomHandlers.fotografia.fitToContainer(), 0);
         }
@@ -738,9 +715,6 @@ function resetAllCanvasState() {
     limpiarCanvasYEstado();
 }
 
-// ... el resto (draw_coord, config_all, setupZoomAndDrag, isAnyCanvasInDrawingMode, zoom_mas, zoom_menos) se mantiene igual, solo se puede aplicar similar limpieza si deseas seguir extendiendo el refactor.
-
-
 /*metodo al precionar el grip desde mba3 nos devuelve los datos para graficar las coordenadas en los planos*/
 function draw_coord(dataJson) {
     console.log(dataJson);
@@ -755,7 +729,7 @@ function draw_coord(dataJson) {
         !dataJson.Planograma[0];
 
     if (isInvalid) {
-        localStorage.setItem('data', '[]');
+        //localStorage.setItem('data', '[]');
         getPlanos();
         getUbic();
         getUbic2();
@@ -926,6 +900,8 @@ function cleanCoord(coord) {
 
 /*Funcion envia datos desde MBA3 A web plano por defuat*/
 function config_all(dataJson) {
+    console.log(dataJson);
+
     zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
 
     localStorage.setItem('press', false);
@@ -973,72 +949,123 @@ function setupZoomAndDrag(wrapperSelector, zoomInSelector, zoomOutSelector, imgS
     let translateY = 0;
     const $wrapper = $(wrapperSelector);
     const $img = $(imgSelector);
+
+    // Usar un namespace único para esta instancia para evitar conflictos
+    const instanceNamespace = `.${wrapperSelector.replace(/[#.\s]/g, '_')}_${Date.now()}`;
+
     function updateTransform() {
         $wrapper.css({
             transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
             transformOrigin: '0 0'
         });
 
-        // 🔥 Dispara evento para recalcular
+        // Actualiza el indicador de zoom si existe
+        const zoomPercentage = Math.round(scale * 100);
+        // Determinar el ID del indicador basado en el selector del wrapper
+        let indicatorId = 'zoom-indicator-diagrama';
+        if (wrapperSelector.includes('wrapper2') || wrapperSelector.includes('wrapper4')) {
+            indicatorId = 'zoom-indicator-fotografia';
+        }
+        const $indicator = $(`#${indicatorId}`);
+        if ($indicator.length) {
+            $indicator.text(`Zoom: ${zoomPercentage}%`);
+        }
+
         $(window).trigger('zoom:updated');
     }
 
     function fitToContainer() {
         const img = $img[0];
-        if (!img || !img.naturalWidth || !img.naturalHeight) return;
-
-        const container = $wrapper.parent()[0];
-        const containerWidth = container.offsetWidth;
-        const containerHeight = container.offsetHeight;
-
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const containerRatio = containerWidth / containerHeight;
-
-        // Ajustar imagen para que cubra todo el contenedor, manteniendo aspecto
-        if (imgRatio > containerRatio) {
-            scale = containerWidth / img.naturalWidth;
-        } else {
-            scale = containerHeight / img.naturalHeight;
+        if (!img || !img.naturalWidth || !img.naturalHeight) {
+            // console.warn("fitToContainer: Imagen no cargada o sin dimensiones naturales", img);
+            return; // Salir si la imagen no está lista
         }
 
-        // Centrar
-        translateX = (containerWidth - img.naturalWidth * scale) / 2;
-        translateY = (containerHeight - img.naturalHeight * scale) / 2;
+        const container = $wrapper.parent()[0]; // .fp-canvas-container
+        if (!container) {
+            console.warn("fitToContainer: Contenedor no encontrado para", wrapperSelector);
+            return;
+        }
+
+        // === USAR getBoundingClientRect para dimensiones más precisas ===
+        // Esto puede ayudar con problemas de zoom del navegador
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+        // ================================================
+
+        // Verificar si el contenedor tiene dimensiones válidas
+        if (containerWidth <= 0 || containerHeight <= 0) {
+            // console.warn("fitToContainer: Contenedor tiene dimensiones 0 o inválidas", container, containerWidth, containerHeight);
+            // Podría intentar reintentar más tarde si es un problema persistente
+            return;
+        }
+
+        const imgNaturalWidth = img.naturalWidth;
+        const imgNaturalHeight = img.naturalHeight;
+        const imgRatio = imgNaturalWidth / imgNaturalHeight;
+        const containerRatio = containerWidth / containerHeight;
+
+        // === LÓGICA 'CONTAIN': Ajustar completamente dentro del contenedor ===
+        // Esta opción asegura que toda la imagen sea visible.
+        if (imgRatio > containerRatio) {
+            // La imagen es más ancha en proporción que el contenedor
+            scale = containerWidth / imgNaturalWidth; // Escalar por la anchura
+        } else {
+            // La imagen es más alta en proporción que el contenedor o tiene la misma proporción
+            scale = containerHeight / imgNaturalHeight; // Escalar por la altura
+        }
+
+        // Centrar la imagen después del escalado 'contain'
+        const scaledImgWidth = imgNaturalWidth * scale;
+        const scaledImgHeight = imgNaturalHeight * scale;
+        translateX = (containerWidth - scaledImgWidth) / 2;
+        translateY = (containerHeight - scaledImgHeight) / 2;
 
         updateTransform();
+        // console.log(`fitToContainer (${wrapperSelector}): Scale=${scale}, Translate=(${translateX}, ${translateY})`);
     }
 
-    // Cargar imagen
-    const img = $img[0];
-    if (img.complete && img.naturalWidth) {
+    // --- Manejo de la carga de la imagen y ajuste inicial ---
+    const imgElement = $img[0];
+
+    // Función auxiliar para intentar ajustar con reintentos si el contenedor aún no tiene tamaño
+    function attemptFit(maxAttempts = 5, attempt = 1) {
         fitToContainer();
+        // Si el contenedor aún no tiene tamaño y no hemos agotado los intentos, reintentar
+        const container = $wrapper.parent()[0];
+        if (container) {
+            const containerRect = container.getBoundingClientRect();
+            if ((containerRect.width <= 0 || containerRect.height <= 0) && attempt < maxAttempts) {
+                // console.log(`Reintentando fitToContainer (${attempt + 1}) para ${wrapperSelector}`);
+                setTimeout(() => attemptFit(maxAttempts, attempt + 1), 50); // Esperar 50ms antes de reintentar
+            }
+        }
+    }
+
+    if (imgElement.complete && imgElement.naturalWidth) {
+        setTimeout(attemptFit, 0); // Ejecutar en el siguiente ciclo para asegurar renderizado
     } else {
-        img.onload = fitToContainer;
+        // Esperar a que la imagen se cargue
+        $img.off(`load${instanceNamespace}`).one(`load${instanceNamespace}`, function () {
+            setTimeout(attemptFit, 0); // Pequeño retraso para asegurar dimensiones del contenedor
+        });
     }
 
     // Botones de zoom
     if (zoomInSelector) {
-        $(zoomInSelector).off('click').on('click', zoomIn);
+        $(zoomInSelector).off(`click${instanceNamespace}`).on(`click${instanceNamespace}`, zoomIn);
     }
     if (zoomOutSelector) {
-        $(zoomOutSelector).off('click').on('click', zoomOut);
+        $(zoomOutSelector).off(`click${instanceNamespace}`).on(`click${instanceNamespace}`, zoomOut);
     }
 
-
-    // Arrastre
+    // --- Manejo del Arrastre (Drag) ---
     let isDragging = false;
     let lastX, lastY;
 
-    $wrapper.on('mousedown', function (e) {
-        if (isAnyCanvasInDrawingMode()) return;
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        $wrapper.css('cursor', 'grabbing');
-        e.preventDefault();
-    });
-
-    $(document).on('mousemove', function (e) {
+    // Funciones para manejar el arrastre
+    function handleMouseMove(e) {
         if (!isDragging) return;
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
@@ -1047,46 +1074,95 @@ function setupZoomAndDrag(wrapperSelector, zoomInSelector, zoomOutSelector, imgS
         lastX = e.clientX;
         lastY = e.clientY;
         updateTransform();
-    });
+    }
 
-    $(document).on('mouseup', function () {
+    function handleMouseUp() {
         isDragging = false;
         $wrapper.css('cursor', 'grab');
+        // Desasociar los eventos globales al soltar
+        $(document).off(`mousemove${instanceNamespace} mouseup${instanceNamespace}`);
+    }
+
+    // Asociar evento mousedown al wrapper
+    $wrapper.off(`mousedown${instanceNamespace}`).on(`mousedown${instanceNamespace}`, function (e) {
+        if (isAnyCanvasInDrawingMode()) return;
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        $wrapper.css('cursor', 'grabbing');
+        e.preventDefault();
+
+        // Asociar eventos globales solo cuando se inicia el arrastre
+        $(document).off(`mousemove${instanceNamespace} mouseup${instanceNamespace}`)
+            .on(`mousemove${instanceNamespace}`, handleMouseMove)
+            .on(`mouseup${instanceNamespace}`, handleMouseUp);
     });
 
-    $wrapper.on('mouseenter', function () {
-        $wrapper.css('cursor', isDragging ? 'grabbing' : 'grab');
-    }).on('mouseleave', function () {
-        if (!isDragging) $wrapper.css('cursor', 'default');
-    });
+    // Manejo del cursor al entrar/salir del área
+    $wrapper.off(`mouseenter${instanceNamespace} mouseleave${instanceNamespace}`)
+        .on(`mouseenter${instanceNamespace}`, function () {
+            if (!isAnyCanvasInDrawingMode()) {
+                $wrapper.css('cursor', isDragging ? 'grabbing' : 'grab');
+            }
+        })
+        .on(`mouseleave${instanceNamespace}`, function () {
+            if (!isDragging && !isAnyCanvasInDrawingMode()) {
+                $wrapper.css('cursor', 'default');
+            }
+        });
 
     // Zoom: mantiene el centro del contenedor fijo
     function zoomIn() {
+        const container = $wrapper.parent()[0];
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const centerX = containerRect.width / 2;
+        const centerY = containerRect.height / 2;
+
         const newScale = Math.min(3, scale + 0.1);
-        const delta = newScale - scale;
-        translateX -= (delta * $img[0].naturalWidth) / 2;
-        translateY -= (delta * $img[0].naturalHeight) / 2;
+        const deltaScale = newScale - scale;
+
+        // Ajustar la traslación para mantener el punto central del contenedor fijo
+        translateX -= (deltaScale * centerX);
+        translateY -= (deltaScale * centerY);
+
         scale = newScale;
         updateTransform();
     }
 
     function zoomOut() {
+        const container = $wrapper.parent()[0];
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const centerX = containerRect.width / 2;
+        const centerY = containerRect.height / 2;
+
         const newScale = Math.max(0.1, scale - 0.1);
-        const delta = newScale - scale;
-        translateX -= (delta * $img[0].naturalWidth) / 2;
-        translateY -= (delta * $img[0].naturalHeight) / 2;
+        const deltaScale = newScale - scale;
+
+        // Ajustar la traslación para mantener el punto central del contenedor fijo
+        translateX -= (deltaScale * centerX);
+        translateY -= (deltaScale * centerY);
+
         scale = newScale;
         updateTransform();
     }
-    // Ajustar al redimensionar
-    $(window).on('resize', fitToContainer);
 
+    // Ajustar al redimensionar la ventana
+    $(window).off(`resize${instanceNamespace}`).on(`resize${instanceNamespace}`, function () {
+        // console.log("Ventana redimensionada, ajustando a contenedor:", imgSelector);
+        // Usar setTimeout para asegurar que el layout se ha recalculado
+        setTimeout(fitToContainer, 100);
+    });
+
+    // Devolver el objeto con métodos públicos
     return {
         zoomIn,
         zoomOut,
         fitToContainer
     };
-
 }
 function isAnyCanvasInDrawingMode() {
     return (

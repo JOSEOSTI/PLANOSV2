@@ -19,7 +19,7 @@
 <body>
 
     <!-- TU HTML SIN CAMBIOS (excepto cierre extra de </div>) -->
-    <div class="container-xl" id="page-container">
+    <div class="container" id="page-container">
         <div class="row my-2">
             <div class="col-md-12">
                 <button class="btn btn-primary" type="button" id="map_area"
@@ -40,26 +40,26 @@
         </div>
 
         <!-- Contenedor diagrama -->
-        <div id="fp-canvas-container" class="fp-canvas-container"
-            style="overflow: hidden; position: relative; height: 90vh;">
-            <div class="fp-zoom-wrapper" id="fp-wrapper" data-scale="1" data-x="0" data-y="0" style="transform-origin: 0 0;">
+        <div id="fp-canvas-container" class="fp-canvas-container">
+            <div class="fp-zoom-wrapper" id="fp-wrapper" data-scale="1" data-x="0" data-y="0"
+                style="transform-origin: 0 0;">
                 <map name="fp-map" id="fp-map"></map>
                 <img src="" class="img-fluid fp-img" id="fp-img" usemap="#fp-map">
                 <canvas class="fp-canvas d-none" id="fp-canvas"></canvas>
             </div>
             <!-- 🔔 Badge de zoom (nuevo) -->
-            <div id="zoom-indicator-diagrama" class="zoom-indicator">Zoom: 100%</div>
+            <!-- <div id="zoom-indicator-diagrama" class="zoom-indicator">Zoom: 100%</div> -->
         </div>
 
         <!-- Contenedor fotografia -->
-        <div id="fp-canvas-container2" class="fp-canvas-container"
-            style="overflow: hidden; position: relative; height: 90vh;">
-            <div class="fp-zoom-wrapper" id="fp-wrapper2" data-scale="1" data-x="0" data-y="0" style="transform-origin: 0 0;">
+        <div id="fp-canvas-container2" class="fp-canvas-container2">
+            <div class="fp-zoom-wrapper" id="fp-wrapper2" data-scale="1" data-x="0" data-y="0"
+                style="transform-origin: 0 0;">
                 <map name="fp-map2" id="fp-map2"></map>
                 <img src="" class="img-fluid fp-img2" id="fp-img2" usemap="#fp-map2">
                 <canvas class="fp-canvas2 d-none" id="fp-canvas2"></canvas>
             </div>
-            <div id="zoom-indicator-fotografia" class="zoom-indicator">Zoom: 100%</div>
+            <!-- <div id="zoom-indicator-fotografia" class="zoom-indicator">Zoom: 100%</div> -->
         </div>
 
         <!-- Contenedor Mixto (3 y 4 en fila) -->

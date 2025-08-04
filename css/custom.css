@@ -4,16 +4,21 @@
     height: 100vh;
     padding: 15px;
     margin: 0 auto;
-    border: 1px solid gray;
+    /*border: 1px solid gray;*/
     box-sizing: border-box;
 }
 
-.container-xxl {
+.container{
     max-width: 1140px;
     /* Bootstrap xxl */
     margin: 0 auto;
 }
-
+.fp-canvas-container,
+.fp-canvas-container2{
+    overflow: hidden;
+     position: relative;
+      height:115vh
+}
 
 /* Imágenes y canvas en todos los contenedores */
 .fp-img, .fp-img2, .fp-img3, .fp-img4,
