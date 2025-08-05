@@ -214,15 +214,46 @@ $(function () {
 
         let coord_perc = "0, 0, 0, 0";
         let coord_perc2 = "0, 0, 0, 0";
-        const tipo_plano = localStorage.getItem('tp_plano');
 
-        if (tipo_plano === "diagrama") {
-            coord_perc = `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
-        } else if (tipo_plano === "fotografia") {
-            coord_perc2 = `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
-        } else if (tipo_plano === "mixto") {
-            coord_perc = `${canvasState.mixto.A.percent.x1}, ${canvasState.mixto.A.percent.y1}, ${canvasState.mixto.A.percent.x2}, ${canvasState.mixto.A.percent.y2}`;
-            coord_perc2 = `${canvasState.mixto.B.percent.x1}, ${canvasState.mixto.B.percent.y1}, ${canvasState.mixto.B.percent.x2}, ${canvasState.mixto.B.percent.y2}`;
+        const tipo_plano = localStorage.getItem('tp_plano');
+        const cp_element = JSON.parse(localStorage.getItem("mapped_ubic_press"));
+        const isInvalid =
+            !cp_element ||
+            typeof cp_element !== 'object' ||
+            !Array.isArray(cp_element.Planograma) ||
+            cp_element.Planograma.length === 0 ||
+            !cp_element.Planograma[0];
+
+        if (!isInvalid) {
+            const coordenadas = cp_element.Planograma[0];
+            const esCoordVacia = (str) => str === "0, 0, 0, 0";
+
+            if (tipo_plano === "diagrama") {
+                coord_perc = !esCoordVacia(coordenadas.coord_perc)
+                    ? coordenadas.coord_perc
+                    : `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
+
+                // Mantener coord_perc2 si ya existe, o usar valores actuales de B
+                coord_perc2 = coordenadas.coord_perc2 && !esCoordVacia(coordenadas.coord_perc2)
+                    ? coordenadas.coord_perc2
+                    : `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
+            }
+            else if (tipo_plano === "fotografia") {
+                coord_perc2 = !esCoordVacia(coordenadas.coord_perc2)
+                    ? coordenadas.coord_perc2
+                    : `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
+
+                // Mantener coord_perc si ya existe, o usar valores actuales de A
+                coord_perc = coordenadas.coord_perc && !esCoordVacia(coordenadas.coord_perc)
+                    ? coordenadas.coord_perc
+                    : `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
+            }
+        } else {
+            if (tipo_plano === "diagrama") {
+                coord_perc = `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
+            } else if (tipo_plano === "fotografia") {
+                coord_perc2 = `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
+            }
         }
 
         let id = $(this).find('[name="id"]').val();
@@ -243,15 +274,14 @@ $(function () {
             id,
             tipo_plano
         };
-        d_storage = data_storage;
 
+        // Datos para enviar al backend
         data_plano = { id, cod_ubi, coord_perc, color: coolor_cor, id_corp, id_suc, tipo_plano };
         data_plano2 = { id, cod_ubi, coord_perc2, color: coolor_cor, id_corp, id_suc, tipo_plano };
 
+        // Guardar coordenadas en backend
         $4d.fn_planograma("save_coordendas", cod_ubi, id_suc, id_corp, id.toString(), coord_perc, coord_perc2, localStorage.getItem('select'), function (data_resps) {
-            console.log(data_resps);
 
-            // Cargar/validar array previo
             let data_mba3;
             try {
                 const storedData = localStorage.getItem('data');
@@ -261,34 +291,50 @@ $(function () {
             }
             if (!Array.isArray(data_mba3)) data_mba3 = [];
 
-            const planoExistente = data_mba3.find(item => item.tipo_plano === data_storage.tipo_plano);
-            if (planoExistente) {
-                if (!Array.isArray(planoExistente.Planograma)) {
-                    planoExistente.Planograma = [];
-                }
-                planoExistente.Planograma.push(data_storage);
+            // Buscar registro por cod_ubi (único por ubicación)
+            const registroIndex = data_mba3.findIndex(item => item.cod_ubi === cod_ubi);
+            let registro;
+
+            if (registroIndex === -1) {
+                // Crear nuevo registro
+                registro = {
+                    cod_ubi,
+                    id_corp,
+                    id_suc,
+                    coord_perc: "0, 0, 0, 0",
+                    coord_perc2: "0, 0, 0, 0",
+                    id: id,
+                    Planograma: [] // historial de cambios si lo necesitas
+                };
+                data_mba3.push(registro);
             } else {
-                data_mba3.push({
-                    tipo_plano: data_storage.tipo_plano,
-                    Planograma: [data_storage]
-                });
+                registro = data_mba3[registroIndex];
             }
 
-            localStorage.setItem('data', JSON.stringify(data_mba3));
-            var datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
-            resetAllCanvasState();
+            // Actualizar solo el campo correspondiente al tipo_plano
+            if (tipo_plano === "diagrama") {
+                registro.coord_perc = coord_perc;
+            } else if (tipo_plano === "fotografia") {
+                registro.coord_perc2 = coord_perc2;
+            }
 
+            // Opcional: guardar en Planograma como historial
+            registro.Planograma.push(data_storage);
+
+            // Guardar todo de vuelta
+            localStorage.setItem('data', JSON.stringify(data_mba3));
+
+            // Refrescar datos y limpiar
+            const datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
+            resetAllCanvasState();
             $('#mapped-form')[0].reset();
 
-            // Reiniciar zoomes
-            // Para diagrama
+            // Reiniciar zoom
             zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
-
-            // Para fotografía
             zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
+
             saveSeccionesCord1();
             draw_coord(datapress);
-
 
         });
 
@@ -430,28 +476,25 @@ function calcularCoordenadas(selector, perc) {
 
     return { x, y, width, height };
 }
-
-function crearArea(coords, element, mapSelector) {
-    const area = $("<area shape='rect' class='ubic'>")
-        .attr('href', "javascript:void(0)")
-        .attr('coords', `${coords.x}, ${coords.y}, ${coords.width}, ${coords.height}`);
-
-    const color = dame_color_aleatorio();
-
-    area.css({
-        'height': coords.height + 'px',
-        'width': coords.width + 'px',
-        'top': coords.y + 'px',
-        'left': coords.x + 'px',
-        'border': '2px solid rgba(0,0,255,0.7)',
+function crearArea(coords, element, containerSelector) {
+    const areaDiv = $("<div class='ubic area-animada'>").css({
+        position: 'absolute',
+        top: coords.y + 'px',
+        left: coords.x + 'px',
+        width: coords.width + 'px',
+        height: coords.height + 'px',
+        border: '2px solid rgba(0,0,255,0.7)', // puedes ajustar el color base si quieres,
         'background-image': "url('https://flyclipart.com/thumb2/dot-dots-lines-icon-png-and-vector-for-free-download-832062.png')",
         'background-position': 'center',
         'background-repeat': 'no-repeat',
-        'background-size': 'cover'
+        'background-size': 'cover',
+        'z-index': 1000,
+        'box-sizing': 'border-box'
     });
 
-    $(mapSelector).append(area);
+    $(containerSelector).append(areaDiv);
 }
+
 
 function getPlanos(params) {
     const dataString = localStorage.getItem('data');
@@ -861,23 +904,22 @@ function draw_coord(dataJson) {
         }
     }
 
-    console.log(coincidencia);
+    console.log(mensaje_coincidencia);
 
     // SweetAlert2 en vez de alert, solo una vez:
-    if (coincidencia === false) {
-        Swal.fire({
-            title: 'Advertencia',
-            iconColor: '#6B949D',
-            text: mensaje_coincidencia,
-            icon: 'warning',
-            timer: 2500, // milisegundos: 2.5 segundos
-            showConfirmButton: false,
-            position: 'top',
-            toast: true,
-            timerProgressBar: true
-        });
-    }
-
+    // if (coincidencia === false) {
+    //     Swal.fire({
+    //         title: 'Advertencia',
+    //         iconColor: '#6B949D',
+    //         text: mensaje_coincidencia,
+    //         icon: 'warning',
+    //         timer: 2500, // milisegundos: 2.5 segundos
+    //         showConfirmButton: false,
+    //         position: 'top',
+    //         toast: true,
+    //         timerProgressBar: true
+    //     });
+    // }
 
 }
 
@@ -1184,4 +1226,17 @@ function zoom_menos() {
     } else {
         console.warn("No hay handler de zoom activo para", plano);
     }
+}
+function zoom_defualt(params) {
+    localStorage.setItem('data', JSON.stringify(data_mba3));
+    var datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
+    resetAllCanvasState();
+    // Reiniciar zoomes
+    // Para diagrama
+    zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
+    // Para fotografía
+    zoomHandlers.fotografia = setupZoomAndDrag('#fp-wrapper2', '#zoom-in2', '#zoom-out2', '#fp-img2');
+    saveSeccionesCord1();
+    draw_coord(datapress);
+
 }
