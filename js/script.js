@@ -278,9 +278,31 @@ $(function () {
         // Datos para enviar al backend
         data_plano = { id, cod_ubi, coord_perc, color: coolor_cor, id_corp, id_suc, tipo_plano };
         data_plano2 = { id, cod_ubi, coord_perc2, color: coolor_cor, id_corp, id_suc, tipo_plano };
-
+        // Obtener la opción visual elegida
+        const visual_choice = localStorage.getItem("tp_plano");
+        let select_visual = "";
+        if (visual_choice === "diagrama") {
+            select_visual = "P";
+        } else if (visual_choice === "fotografia") {
+            select_visual = "F";
+        }
+        const plano_select = localStorage.getItem('select');
+        console.log(
+            "%c[Guardar Coordenadas]",
+            "color: green; font-weight: bold;",
+            {
+                cod_ubi,
+                id_suc,
+                id_corp,
+                id: id.toString(),
+                coord_perc,
+                coord_perc2,
+                plano_select,
+                select_visual,
+            }
+        );
         // Guardar coordenadas en backend
-        $4d.fn_planograma("save_coordendas", cod_ubi, id_suc, id_corp, id.toString(), coord_perc, coord_perc2, localStorage.getItem('select'), function (data_resps) {
+        $4d.fn_planograma("save_coordendas", cod_ubi, id_suc, id_corp, id.toString(), coord_perc, coord_perc2, localStorage.getItem('select'), select_visual, function (data_resps) {
 
             let data_mba3;
             try {
@@ -747,8 +769,6 @@ function resetAllCanvasState() {
 
 /*metodo al precionar el grip desde mba3 nos devuelve los datos para graficar las coordenadas en los planos*/
 function draw_coord(dataJson) {
-    console.log(dataJson);
-
     localStorage.setItem('mapped_ubic_press', JSON.stringify(dataJson));
 
     const isInvalid =
@@ -929,8 +949,6 @@ function cleanCoord(coord) {
 
 /*Funcion envia datos desde MBA3 A web plano por defuat*/
 function config_all(dataJson) {
-    console.log(dataJson);
-
     zoomHandlers.diagrama = setupZoomAndDrag('#fp-wrapper', '#zoom-in', '#zoom-out', '#fp-img');
 
     localStorage.setItem('press', false);
@@ -1227,8 +1245,8 @@ function zoom_menos() {
         console.warn("No hay handler de zoom activo para", plano);
     }
 }
-function zoom_defualt(params) {
-    localStorage.setItem('data', JSON.stringify(data_mba3));
+function zoom_default(params) {
+
     var datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
     resetAllCanvasState();
     // Reiniciar zoomes
