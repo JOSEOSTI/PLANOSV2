@@ -1224,69 +1224,69 @@ function setupZoomAndDrag(wrapperSelector, zoomInSelector, zoomOutSelector, imgS
         $(window).trigger('zoom:updated');
     }
 
-function fitToContainer (wrapperSelector, retryDelay = 50, maxRetries = 10) {
-    const $wrapper = $(wrapperSelector);
-    const $img = $wrapper.find('img');
-    const container = $wrapper.parent()[0];
+    function fitToContainer(wrapperSelector, retryDelay = 50, maxRetries = 10) {
+        const $wrapper = $(wrapperSelector);
+        const $img = $wrapper.find('img');
+        const container = $wrapper.parent()[0];
 
-    if (!$img.length || !$wrapper.length || !container) {
-        console.warn(`fitToContainer: elementos faltantes para ${wrapperSelector}`);
-        return false;
-    }
-
-    const img = $img[0];
-    if (!img.complete || img.naturalWidth === 0) {
-        console.log(`fitToContainer: imagen no lista. Esperando onload...`);
-        $img.one('load', () => fitToContainer (wrapperSelector, retryDelay, maxRetries));
-        return false;
-    }
-
-    const attempt = (retryCount = 0) => {
-        const rect = container.getBoundingClientRect();
-        const cw = rect.width;
-        const ch = rect.height;
-
-        // ✅ Solo procede si el contenedor es visible y tiene tamaño
-        if (cw > 1 && ch > 1) {
-            const iw = img.naturalWidth;
-            const ih = img.naturalHeight;
-            const imgRatio = iw / ih;
-            const containerRatio = cw / ch;
-
-            let scale;
-            if (imgRatio > containerRatio) {
-                scale = cw / iw; // ajustar por ancho
-            } else {
-                scale = ch / ih; // ajustar por alto
-            }
-
-            const scaledW = iw * scale;
-            const scaledH = ih * scale;
-            const translateX = (cw - scaledW) / 2;
-            const translateY = (ch - scaledH) / 2;
-
-            // Aplicar al *wrapper*, como hace tu código actual
-            $wrapper.css({
-                transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-                transformOrigin: '0 0'
-            });
-
-            console.log(`✅ fitToContainer (${wrapperSelector}): scale=${scale.toFixed(3)}, tx=${translateX.toFixed(1)}, ty=${translateY.toFixed(1)}`);
-            return true;
-        }
-
-        // ❌ Contenedor aún sin tamaño → reintentar
-        if (retryCount < maxRetries) {
-            console.log(`⏳ fitToContainer (${wrapperSelector}): contenedor sin tamaño (${cw}×${ch}). Reintentando (${retryCount + 1}/${maxRetries})...`);
-            setTimeout(() => attempt(retryCount + 1), retryDelay);
-        } else {
-            console.error(`❌ fitToContainer (${wrapperSelector}): falló tras ${maxRetries} intentos. Contenedor sigue sin tamaño.`);
+        if (!$img.length || !$wrapper.length || !container) {
+            console.warn(`fitToContainer: elementos faltantes para ${wrapperSelector}`);
             return false;
         }
-    };
 
-    return attempt();
-}
+        const img = $img[0];
+        if (!img.complete || img.naturalWidth === 0) {
+            console.log(`fitToContainer: imagen no lista. Esperando onload...`);
+            $img.one('load', () => fitToContainer(wrapperSelector, retryDelay, maxRetries));
+            return false;
+        }
+
+        const attempt = (retryCount = 0) => {
+            const rect = container.getBoundingClientRect();
+            const cw = rect.width;
+            const ch = rect.height;
+
+            // ✅ Solo procede si el contenedor es visible y tiene tamaño
+            if (cw > 1 && ch > 1) {
+                const iw = img.naturalWidth;
+                const ih = img.naturalHeight;
+                const imgRatio = iw / ih;
+                const containerRatio = cw / ch;
+
+                let scale;
+                if (imgRatio > containerRatio) {
+                    scale = cw / iw; // ajustar por ancho
+                } else {
+                    scale = ch / ih; // ajustar por alto
+                }
+
+                const scaledW = iw * scale;
+                const scaledH = ih * scale;
+                const translateX = (cw - scaledW) / 2;
+                const translateY = (ch - scaledH) / 2;
+
+                // Aplicar al *wrapper*, como hace tu código actual
+                $wrapper.css({
+                    transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+                    transformOrigin: '0 0'
+                });
+
+                console.log(`✅ fitToContainer (${wrapperSelector}): scale=${scale.toFixed(3)}, tx=${translateX.toFixed(1)}, ty=${translateY.toFixed(1)}`);
+                return true;
+            }
+
+            // ❌ Contenedor aún sin tamaño → reintentar
+            if (retryCount < maxRetries) {
+                console.log(`⏳ fitToContainer (${wrapperSelector}): contenedor sin tamaño (${cw}×${ch}). Reintentando (${retryCount + 1}/${maxRetries})...`);
+                setTimeout(() => attempt(retryCount + 1), retryDelay);
+            } else {
+                console.error(`❌ fitToContainer (${wrapperSelector}): falló tras ${maxRetries} intentos. Contenedor sigue sin tamaño.`);
+                return false;
+            }
+        };
+
+        return attempt();
+    }
 
     // --- Manejo de la carga de la imagen y ajuste inicial ---
     const imgElement = $img[0];
