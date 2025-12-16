@@ -49,9 +49,31 @@ let data_plano = JSON.parse(localStorage.getItem('mapped') || '[]');
 let data_plano2 = JSON.parse(localStorage.getItem('mapped2') || '[]');
 
 const zoomState = {
-    diagrama: { scale: 1.0, min: 0.5, max: 3.0, step: 0.25 },
-    fotografia: { scale: 1.0, min: 0.5, max: 3.0, step: 0.25 }
+  diagrama: {
+    scale: 1.0,
+    min: 0.5,
+    max: 3.0,
+    step: 0.25,
+    translateX: 0,
+    translateY: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0
+  },
+  fotografia: {
+    scale: 1.0,
+    min: 0.5,
+    max: 3.0,
+    step: 0.25,
+    translateX: 0,
+    translateY: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0
+  }
 };
+
+
 
 // ─────────────────────────────────────────────────────────────
 // 2. UTILIDADES
@@ -548,9 +570,9 @@ function draw_coord(dataJson) {
 //________________________________________________________________
 
 function updateZoom(wrapperId, scale) {
-    const el = document.getElementById(wrapperId);
-    if (!el) return;
-    el.style.transform = `scale(${scale})`;
+  const el = document.getElementById(wrapperId);
+  if (!el) return;
+  el.style.transform = `scale(${scale}) translate(${zoomState.diagrama.translateX}px, ${zoomState.diagrama.translateY}px)`;
 }
 
 function zoomIn(mode) {
@@ -578,21 +600,114 @@ function zoomOut(mode) {
     else if (mode === 'fotografia') getUbic2();
 }
 function handleZoom(isZoomIn) {
-    const modo = localStorage.getItem('tp_plano');
-    if (modo === 'mixto') {
-        Swal.fire({ icon: 'info', text: 'Zoom no disponible en modo Mixto.', timer: 1200, showConfirmButton: false });
-        return;
-    }
-    if (modo === 'diagrama' || modo === 'fotografia') {
-        isZoomIn ? zoomIn(modo) : zoomOut(modo);
-    }
+  const modo = localStorage.getItem('tp_plano');
+  if (modo === 'mixto') {
+    Swal.fire({ icon: 'info', text: 'Zoom no disponible en modo Mixto.', timer: 1200, showConfirmButton: false });
+    return;
+  }
+
+  // Si está arrastrando, no hacer zoom
+  if (zoomState[modo].isDragging) return;
+
+  if (modo === 'diagrama' || modo === 'fotografia') {
+    isZoomIn ? zoomIn(modo) : zoomOut(modo);
+  }
+}
+// ─────────────────────────────────────────────────────────────
+// 8. Dragrable
+// ──____________________________________________________________
+function startDrag(e, mode) {
+  const state = zoomState[mode];
+  if (!state) return;
+
+  state.isDragging = true;
+  state.startX = e.clientX - state.translateX;
+  state.startY = e.clientY - state.translateY;
+  document.body.style.cursor = 'grabbing';
 }
 
+function dragMove(e, mode) {
+  const state = zoomState[mode];
+  if (!state.isDragging) return;
+
+  // Calcular nueva posición
+  const newX = e.clientX - state.startX;
+  const newY = e.clientY - state.startY;
+
+  // Aplicar límites para no salir del contenedor
+  const wrapper = document.getElementById(
+    mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia'
+  );
+  if (!wrapper) return;
+
+  const container = wrapper.parentElement; // fp-canvas-container
+  const containerRect = container.getBoundingClientRect();
+  const wrapperRect = wrapper.getBoundingClientRect();
+
+  // Límites: no permitir que la imagen se salga del contenedor
+  const maxTranslateX = Math.max(0, (wrapperRect.width - containerRect.width) / 2);
+  const maxTranslateY = Math.max(0, (wrapperRect.height - containerRect.height) / 2);
+
+  state.translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newX));
+  state.translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newY));
+
+  updateTransform(mode);
+}
+
+function endDrag(mode) {
+  const state = zoomState[mode];
+  if (!state.isDragging) return;
+  state.isDragging = false;
+  document.body.style.cursor = 'default';
+}
+
+function updateTransform(mode) {
+  const state = zoomState[mode];
+  const wrapperId = mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia';
+  const el = document.getElementById(wrapperId);
+  if (!el) return;
+
+  el.style.transform = `scale(${state.scale}) translate(${state.translateX}px, ${state.translateY}px)`;
+}
 // ─────────────────────────────────────────────────────────────
 // 8. INICIALIZACIÓN
 // ─────────────────────────────────────────────────────────────
 
+function initDragEvents() {
+  const wrappers = [
+    { id: 'zoom-wrapper-diagrama', mode: 'diagrama' },
+    { id: 'zoom-wrapper-fotografia', mode: 'fotografia' }
+  ];
+
+  wrappers.forEach(({ id, mode }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.addEventListener('mousedown', e => {
+      if (e.button !== 0) return; // solo clic izquierdo
+      startDrag(e, mode);
+    });
+
+    el.addEventListener('mousemove', e => {
+      if (zoomState[mode].isDragging) {
+        dragMove(e, mode);
+      }
+    });
+
+    el.addEventListener('mouseup', () => endDrag(mode));
+    el.addEventListener('mouseleave', () => endDrag(mode));
+
+    // Para evitar selección de texto
+    el.addEventListener('dragstart', e => e.preventDefault());
+  });
+}
 $(function () {
     // Si existe data en localStorage, se usa; sino, espera dataJson externa.
     draw_coord(dataJson)
+
+    // Inicializar eventos de arrastre
+initDragEvents()
+
+// Llamar después de que el DOM esté listo
+
 });
