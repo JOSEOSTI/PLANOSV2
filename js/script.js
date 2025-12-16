@@ -22,7 +22,7 @@ var dataJson = {
     ]
 }
 
-// === Estado de canvas unificado ===
+
 const canvasState = {
     A: createCanvasSubstate(),
     B: createCanvasSubstate(),
@@ -35,7 +35,6 @@ const canvasState = {
 function createCanvasSubstate() {
     return {
         ctx: null,
-        position: { x: 0, y: 0 },
         mouseStart: { x: 0, y: 0 },
         mouseEnd: { x: 0, y: 0 },
         percent: { x1: 0, y1: 0, x2: 0, y2: 0 },
@@ -44,533 +43,309 @@ function createCanvasSubstate() {
     };
 }
 
-// === Secuencias y datos persistidos ===
-let AI_seq = parseInt(localStorage.getItem('seq') || "0", 10);
-let AI_seq2 = parseInt(localStorage.getItem('seq2') || "0", 10);
-let data_plano = JSON.parse(localStorage.getItem('mapped') || "[]");
-let data_plano2 = JSON.parse(localStorage.getItem('mapped2') || "[]");
+let AI_seq = parseInt(localStorage.getItem('seq') || '0', 10);
+let AI_seq2 = parseInt(localStorage.getItem('seq2') || '0', 10);
+let data_plano = JSON.parse(localStorage.getItem('mapped') || '[]');
+let data_plano2 = JSON.parse(localStorage.getItem('mapped2') || '[]');
 
-let d_storage = {};
-let data_cd = [];
-let activeZoomHandler = null;
-
-
-const zoomHandlers = {
-    diagrama: null,
-    fotografia: null,
-    mixtoA: null,
-    mixtoB: null
+const zoomState = {
+    diagrama: { scale: 1.0, min: 0.5, max: 3.0, step: 0.25 },
+    fotografia: { scale: 1.0, min: 0.5, max: 3.0, step: 0.25 }
 };
 
-
+// ─────────────────────────────────────────────────────────────
+// 2. UTILIDADES
+// ─────────────────────────────────────────────────────────────
 
 function screenToCanvasCoords(canvas, clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
-    return { x, y };
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
 }
 
-// ===== Helpers de dibujo =====
-function attachDrawingHandlers(options) {
-    const { canvasEl, state, selector, onComplete } = options;
+function cleanCoord(coord) {
+    return typeof coord === 'string' ? coord.replace(/\s/g, '') : '';
+}
+
+function isZeroCoord(coord) {
+    return cleanCoord(coord) === '0,0,0,0';
+}
+
+function calcularCoordenadas(imgSelector, perc) {
+    const $img = $(imgSelector);
+    const w = $img.width();
+    const h = $img.height();
+
+    const [x1, y1, x2, y2] = perc.map(p => parseFloat(p));
+    const x = w * x1;
+    const y = h * y1;
+    const width = Math.abs(w * x2 - x);
+    const height = Math.abs(h * y2 - y);
+
+    return {
+        x: (w * x2 - x) < 0 ? x - width : x,
+        y: (h * y2 - y) < 0 ? y - height : y,
+        width,
+        height
+    };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. DIBUJO Y MANEJO DE CANVAS
+// ─────────────────────────────────────────────────────────────
+
+function attachDrawingHandlers({ canvasEl, state, selector, onComplete }) {
     if (!canvasEl) return;
-    const $el = $(selector);
 
     function startDrawing(e) {
-        const coords = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
-        state.mouseStart.x = coords.x;
-        state.mouseStart.y = coords.y;
+        const { x, y } = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
+        state.mouseStart.x = x;
+        state.mouseStart.y = y;
         state.isDrawing = true;
-        state.percent.x1 = coords.x / canvasEl.width;
-        state.percent.y1 = coords.y / canvasEl.height;
+        state.percent.x1 = x / canvasEl.width;
+        state.percent.y1 = y / canvasEl.height;
     }
 
     function moveDrawing(e) {
         if (!state.isDrawing) return;
-        const coords = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
-        state.mouseEnd.x = coords.x;
-        state.mouseEnd.y = coords.y;
+        const { x, y } = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
+        state.mouseEnd.x = x;
+        state.mouseEnd.y = y;
 
         const width = state.mouseEnd.x - state.mouseStart.x;
         const height = state.mouseEnd.y - state.mouseStart.y;
 
         state.ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-        state.ctx.beginPath();
-        state.ctx.lineWidth = "1";
-        state.ctx.strokeStyle = "#FF0000";
-        state.ctx.rect(state.mouseStart.x, state.mouseStart.y, width, height);
-        state.ctx.stroke();
+        state.ctx.strokeStyle = '#FF0000';
+        state.ctx.lineWidth = 1;
+        state.ctx.strokeRect(state.mouseStart.x, state.mouseStart.y, width, height);
     }
 
     function endDrawing(e) {
         if (!state.isDrawing) return;
-        const coords = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
-        state.mouseEnd.x = coords.x;
-        state.mouseEnd.y = coords.y;
+        const { x, y } = screenToCanvasCoords(canvasEl, e.clientX, e.clientY);
+        state.mouseEnd.x = x;
+        state.mouseEnd.y = y;
 
-        state.percent.x2 = state.mouseEnd.x / canvasEl.width;
-        state.percent.y2 = state.mouseEnd.y / canvasEl.height;
+        state.percent.x2 = x / canvasEl.width;
+        state.percent.y2 = y / canvasEl.height;
 
         const width = state.mouseEnd.x - state.mouseStart.x;
         const height = state.mouseEnd.y - state.mouseStart.y;
 
         state.ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-        state.ctx.beginPath();
-        state.ctx.lineWidth = "1";
-        state.ctx.strokeStyle = "#FF0000";
-        state.ctx.rect(state.mouseStart.x, state.mouseStart.y, width, height);
-        state.ctx.stroke();
+        state.ctx.strokeStyle = '#FF0000';
+        state.ctx.lineWidth = 1;
+        state.ctx.strokeRect(state.mouseStart.x, state.mouseStart.y, width, height);
 
         state.isDrawing = false;
         if (typeof onComplete === 'function') onComplete();
     }
 
-    // Desactivar previos y asignar nuevos
+    const $el = $(selector);
     $el.off('mousedown mousemove mouseup')
-        .on('mousedown', function (e) {
-            e.stopPropagation();
-            startDrawing(e);
-        })
-        .on('mousemove', function (e) {
-            moveDrawing(e);
-        })
-        .on('mouseup', function (e) {
-            endDrawing(e);
-        });
+        .on('mousedown', e => { e.stopPropagation(); startDrawing(e); })
+        .on('mousemove', moveDrawing)
+        .on('mouseup', endDrawing);
 }
 
-// === Inicio de la aplicación ===
-$(function () {
-    draw_coord(dataJson)
+function limpiarCanvasYEstado() {
+    $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
 
-    const tipo_plano = localStorage.getItem('tp_plano');
-    show_plane(tipo_plano);
-    getPlanos();
+    const clearCtx = ctx => ctx && ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    clearCtx(canvasState.A.ctx);
+    clearCtx(canvasState.B.ctx);
+    clearCtx($('#fp-canvas3')[0]?.getContext?.('2d'));
+    clearCtx($('#fp-canvas4')[0]?.getContext?.('2d'));
 
-    $('#map_area').click(function () {
-        $(this).hide('slow');
-        $('#secciones')[0].style.visibility = "hidden";
-        $('#secciones')[0].style.position = "absolute";
-        $('#cancel').show('slow');
+    const reset = cs => {
+        cs.percent = { x1: 0, y1: 0, x2: 0, y2: 0 };
+        cs.mouseStart = { x: 0, y: 0 };
+        cs.mouseEnd = { x: 0, y: 0 };
+        cs.isDrawing = false;
+        cs.isDrawingMode = false;
+    };
 
-        const tp = localStorage.getItem('tp_plano');
-        if (tp === "diagrama") {
-            canvasState.A.isDrawingMode = true;
-            const canvas = $('#fp-canvas')[0];
-            if (!canvas) return;
-            const cs = canvasState.A;
-            cs.ctx = canvas.getContext('2d');
-            cs.position.x = canvas.getBoundingClientRect().x;
-            cs.position.y = canvas.getBoundingClientRect().y;
-
-            $('#fp-canvas3, #fp-canvas4').addClass('d-none');
-            $('#fp-canvas').removeClass('d-none');
-
-            attachDrawingHandlers({
-                canvasEl: canvas,
-                state: cs,
-                selector: '.fp-canvas',
-                onComplete: showConfirmation
-            });
-        } else if (tp === "mixto") {
-            $('#fp-canvas').addClass('d-none');
-            $('#fp-canvas3, #fp-canvas4').removeClass('d-none');
-
-            // Canvas A
-            const canvasA = $('#fp-canvas3')[0];
-            const csA = canvasState.mixto.A;
-            if (canvasA) {
-                csA.ctx = canvasA.getContext('2d');
-                attachDrawingHandlers({
-                    canvasEl: canvasA,
-                    state: csA,
-                    selector: '.fp-canvas3',
-                    onComplete: () => {
-                        if (!canvasState.mixto.B.isDrawing) showConfirmation();
-                    }
-                });
-            }
-
-            // Canvas B
-            const canvasB = $('#fp-canvas4')[0];
-            const csB = canvasState.mixto.B;
-            if (canvasB) {
-                csB.ctx = canvasB.getContext('2d');
-                attachDrawingHandlers({
-                    canvasEl: canvasB,
-                    state: csB,
-                    selector: '.fp-canvas4',
-                    onComplete: () => {
-                        if (!canvasState.mixto.A.isDrawing) showConfirmation();
-                    }
-                });
-            }
-        } else if (tp === "fotografia") {
-            canvasState.B.isDrawingMode = true;
-            const canvas = $('#fp-canvas2')[0];
-            if (!canvas) return;
-            const cs = canvasState.B;
-            cs.ctx = canvas.getContext('2d');
-            cs.position.x = canvas.getBoundingClientRect().x;
-            cs.position.y = canvas.getBoundingClientRect().y;
-
-            $('#fp-canvas, #fp-canvas3, #fp-canvas4').addClass('d-none');
-            $('#fp-canvas2').removeClass('d-none');
-
-            attachDrawingHandlers({
-                canvasEl: canvas,
-                state: cs,
-                selector: '.fp-canvas2',
-                onComplete: showConfirmation
-            });
-        }
-    });
-
-    $('#mapped-form').submit(function (e) {
-        e.preventDefault();
-
-        let coord_perc = "0, 0, 0, 0";
-        let coord_perc2 = "0, 0, 0, 0";
-
-        const tipo_plano = localStorage.getItem('tp_plano');
-        const cp_element = JSON.parse(localStorage.getItem("mapped_ubic_press"));
-        const isInvalid =
-            !cp_element ||
-            typeof cp_element !== 'object' ||
-            !Array.isArray(cp_element.Planograma) ||
-            cp_element.Planograma.length === 0 ||
-            !cp_element.Planograma[0];
-
-        if (!isInvalid) {
-            const coordenadas = cp_element.Planograma[0];
-            const esCoordVacia = (str) => str === "0, 0, 0, 0";
-
-            if (tipo_plano === "diagrama") {
-                coord_perc = !esCoordVacia(coordenadas.coord_perc)
-                    ? coordenadas.coord_perc
-                    : `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
-
-                // Mantener coord_perc2 si ya existe, o usar valores actuales de B
-                coord_perc2 = coordenadas.coord_perc2 && !esCoordVacia(coordenadas.coord_perc2)
-                    ? coordenadas.coord_perc2
-                    : `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
-            }
-            else if (tipo_plano === "fotografia") {
-                coord_perc2 = !esCoordVacia(coordenadas.coord_perc2)
-                    ? coordenadas.coord_perc2
-                    : `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
-
-                // Mantener coord_perc si ya existe, o usar valores actuales de A
-                coord_perc = coordenadas.coord_perc && !esCoordVacia(coordenadas.coord_perc)
-                    ? coordenadas.coord_perc
-                    : `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
-            }
-        } else {
-            if (tipo_plano === "diagrama") {
-                coord_perc = `${canvasState.A.percent.x1}, ${canvasState.A.percent.y1}, ${canvasState.A.percent.x2}, ${canvasState.A.percent.y2}`;
-            } else if (tipo_plano === "fotografia") {
-                coord_perc2 = `${canvasState.B.percent.x1}, ${canvasState.B.percent.y1}, ${canvasState.B.percent.x2}, ${canvasState.B.percent.y2}`;
-            }
-        }
-
-        let id = $(this).find('[name="id"]').val();
-        const coolor_cor = $(this).find('[name="color"]').val();
-        const cod_ubi = localStorage.getItem('code_ubicacion');
-        const id_corp = localStorage.getItem('id_corp');
-        const id_suc = localStorage.getItem('id_suc');
-
-        if (!id) {
-            id = AI_seq + 1;
-            localStorage.setItem('seq', id);
-        }
-
-        const data_storage = {
-            cod_ubi,
-            coord_perc,
-            coord_perc2,
-            id,
-            tipo_plano
-        };
-
-        // Datos para enviar al backend
-        data_plano = { id, cod_ubi, coord_perc, color: coolor_cor, id_corp, id_suc, tipo_plano };
-        data_plano2 = { id, cod_ubi, coord_perc2, color: coolor_cor, id_corp, id_suc, tipo_plano };
-        // Obtener la opción visual elegida
-        const visual_choice = localStorage.getItem("tp_plano");
-        let select_visual = "";
-        if (visual_choice === "diagrama") {
-            select_visual = "P";
-        } else if (visual_choice === "fotografia") {
-            select_visual = "F";
-        }
-        const plano_select = localStorage.getItem('select');
-        console.log(
-            "%c[Guardar Coordenadas]",
-            "color: green; font-weight: bold;",
-            {
-                cod_ubi,
-                id_suc,
-                id_corp,
-                id: id.toString(),
-                coord_perc,
-                coord_perc2,
-                plano_select,
-                select_visual,
-            }
-        );
-        // Guardar coordenadas en backend
-        $4d.fn_planograma("save_coordendas", cod_ubi, id_suc, id_corp, id.toString(), coord_perc, coord_perc2, localStorage.getItem('select'), select_visual, function (data_resps) {
-
-            let data_mba3;
-            try {
-                const storedData = localStorage.getItem('data');
-                data_mba3 = storedData ? JSON.parse(storedData) : [];
-            } catch (e) {
-                data_mba3 = [];
-            }
-            if (!Array.isArray(data_mba3)) data_mba3 = [];
-
-            // Buscar registro por cod_ubi (único por ubicación)
-            const registroIndex = data_mba3.findIndex(item => item.cod_ubi === cod_ubi);
-            let registro;
-
-            if (registroIndex === -1) {
-                // Crear nuevo registro
-                registro = {
-                    cod_ubi,
-                    id_corp,
-                    id_suc,
-                    coord_perc: "0, 0, 0, 0",
-                    coord_perc2: "0, 0, 0, 0",
-                    id: id,
-                    Planograma: [] // historial de cambios si lo necesitas
-                };
-                data_mba3.push(registro);
-            } else {
-                registro = data_mba3[registroIndex];
-            }
-
-            // Actualizar solo el campo correspondiente al tipo_plano
-            if (tipo_plano === "diagrama") {
-                registro.coord_perc = coord_perc;
-            } else if (tipo_plano === "fotografia") {
-                registro.coord_perc2 = coord_perc2;
-            }
-
-            // Opcional: guardar en Planograma como historial
-            registro.Planograma.push(data_storage);
-
-            // Guardar todo de vuelta
-            localStorage.setItem('data', JSON.stringify(data_mba3));
-
-            // Refrescar datos y limpiar
-            const datapress = JSON.parse(localStorage.getItem("mapped_ubic_press"));
-            resetAllCanvasState();
-            $('#mapped-form')[0].reset();
-
-            // Reiniciar zoom
-
-            
-            saveSeccionesCord1();
-            draw_coord(datapress);
-
-        });
-
-        $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
-    });
-});
-
-function mapped_area(data) {
-    const isValid = Array.isArray(data) && data.length > 0;
-    drawAreas(data, '#fp-img', '#fp-map', 'coord_perc', isValid);
-    drawAreas(data, '#fp-img3', '#fp-map3', 'coord_perc', isValid);
+    reset(canvasState.A);
+    reset(canvasState.B);
+    reset(canvasState.mixto.A);
+    reset(canvasState.mixto.B);
 }
 
-function mapped_area2(data) {
-    const isValid = Array.isArray(data) && data.length > 0;
-    drawAreas(data, '#fp-img2', '#fp-map2', 'coord_perc2', isValid);
-    drawAreas(data, '#fp-img4', '#fp-map4', 'coord_perc2', isValid);
-}
+// ─────────────────────────────────────────────────────────────
+// 4. RENDERIZADO DE ÁREAS (MAPS + OVERLAYS)
+// ─────────────────────────────────────────────────────────────
 
-function drawAreas(dataArray, imgSelector, mapSelector, coordField, isValid) {
+function drawAreas(dataArray, imgSelector, mapSelector, coordField) {
     $(mapSelector).empty();
-    if (!isValid) return;
+    if (!Array.isArray(dataArray)) return;
 
     dataArray.forEach(item => {
-        const rawCoord = item[coordField];
-        if (!rawCoord || rawCoord.replace(/\s/g, '') === "0,0,0,0") return;
+        const raw = cleanCoord(item[coordField]);
+        if (!raw || raw === '0,0,0,0') return;
 
-        const perc = rawCoord.replace(/\s/g, '').split(",");
-        if (perc.length < 4) return;
+        const coords = raw.split(',').map(Number);
+        if (coords.length !== 4 || coords.some(isNaN)) return;
 
-        const $img = $(imgSelector);
-        const imgW = $img.width();
-        const imgH = $img.height();
+        const { x, y, width, height } = calcularCoordenadas(imgSelector, coords);
+        if (width <= 0 || height <= 0) return;
 
-        let x = imgW * parseFloat(perc[0]);
-        let y = imgH * parseFloat(perc[1]);
-        const w = Math.abs((imgW * parseFloat(perc[2])) - x);
-        const h = Math.abs((imgH * parseFloat(perc[3])) - y);
-
-        if ((imgW * perc[2]) - x < 0) x -= w;
-        if ((imgH * perc[3]) - y < 0) y -= h;
-
-        const area = $("<area shape='rect' class='ubic'>")
-            .attr('href', 'javascript:void(0)')
-            .attr('coords', `${x},${y},${x + w},${y + h}`)
-            .css({
-                height: h + 'px',
-                width: w + 'px',
-                top: y + 'px',
-                left: x + 'px',
-                border: '2.5px solid #144474'
-            });
-
-        $(mapSelector).append(area);
+        $(mapSelector).append(
+            $('<area>', {
+                shape: 'rect',
+                class: 'ubic',
+                href: 'javascript:void(0)',
+                coords: `${x},${y},${x + width},${y + height}`
+            }).css({
+                position: 'absolute',
+                top: `${y}px`,
+                left: `${x}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+                border: '2.5px solid #144474',
+                'box-sizing': 'border-box'
+            })
+        );
     });
 }
 
-function getUbicaciones(config) {
+function crearArea(coords, element, containerEl) {
+    const $div = $('<div>', { class: 'ubic area-animada' }).css({
+        position: 'absolute',
+        top: `${coords.y}px`,
+        left: `${coords.x}px`,
+        width: `${coords.width}px`,
+        height: `${coords.height}px`,
+        border: '2px solid rgba(0,100,255,0.7)',
+        'background-image': "url('https://flyclipart.com/thumb2/dot-dots-lines-icon-png-and-vector-for-free-download-832062.png')",
+        'background-position': 'center',
+        'background-repeat': 'no-repeat',
+        'background-size': 'cover',
+        'z-index': 1000,
+        'box-sizing': 'border-box'
+    });
+    $(containerEl).append($div);
+}
 
-    const stored = localStorage.getItem('mapped_ubic_press');
-    let draw_data;
+function getUbicaciones({ coordKey, imageSelector, overlayContainerSelector }) {
+    const img = document.querySelector(imageSelector);
+    if (!img) return;
 
-    try {
-        draw_data = stored ? JSON.parse(stored) : { Planograma: [] };
-    } catch (e) {
-        draw_data = { Planograma: [] };
+    // Determinar el overlayLayer correcto según el contenedor
+    let overlayLayer;
+    if (overlayContainerSelector === '#fp-canvas-container') {
+        overlayLayer = document.getElementById('overlay-layer-diagrama');
+    } else if (overlayContainerSelector === '#fp-canvas-container2') {
+        overlayLayer = document.getElementById('overlay-layer-fotografia');
+    } else if (overlayContainerSelector === '#fp-canvas-container3') {
+        overlayLayer = document.getElementById('overlay-layer-mixto-A'); // ⚠️ Debes crear este elemento
+    } else if (overlayContainerSelector === '#fp-canvas-container4') {
+        overlayLayer = document.getElementById('overlay-layer-mixto-B'); // ⚠️ Debes crear este elemento
     }
-    console.log(draw_data);
 
-
-    const data_ubic = Array.isArray(draw_data.Planograma) ? draw_data.Planograma : [];
-    console.log(data_ubic);
-
-    const img = document.querySelector(config.imageSelector);
-    const overlayLayer = config.overlayContainerSelector === '#fp-canvas-container'
-        ? document.getElementById('overlay-layer-diagrama')
-        : document.getElementById('overlay-layer-fotografia');
-
-    if (!overlayLayer || !img) {
-        console.warn('getUbicaciones: img o overlayLayer no encontrado');
+    if (!overlayLayer) {
+        console.warn(`getUbicaciones: overlayLayer no encontrado para ${overlayContainerSelector}`);
         return;
     }
 
-    // ✅ LIMPIAR OVERLAYS ANTERIORES
+    // Limpiar overlays anteriores
     overlayLayer.innerHTML = '';
 
-    if (!data_ubic.length) return;
+    // Obtener datos desde localStorage
+    let drawData;
+    try {
+        const stored = localStorage.getItem('mapped_ubic_press');
+        drawData = stored ? JSON.parse(stored).Planograma || [] : [];
+    } catch (e) {
+        console.error('Error al parsear mapped_ubic_press:', e);
+        drawData = [];
+    }
 
-    // ✅ Verificar que la imagen esté cargada
+    if (!drawData.length) return;
+
+    // Esperar a que la imagen cargue
     if (!img.complete || img.naturalWidth === 0) {
-        console.warn('getUbicaciones: imagen no cargada. Esperando...');
-        img.addEventListener('load', () => parent.fn.getUbicaciones(config), { once: true });
+        img.addEventListener('load', () => getUbicaciones(arguments[0]), { once: true });
         return;
     }
 
-    // ✅ Obtener contenedor principal
-    const container = config.overlayContainerSelector === '#fp-canvas-container'
-        ? document.getElementById('fp-canvas-container')
-        : document.getElementById('fp-canvas-container2');
-
+    // Obtener contenedor principal
+    const container = document.querySelector(overlayContainerSelector);
     if (!container) {
-        console.warn('getUbicaciones: contenedor no encontrado:', config.overlayContainerSelector);
+        console.warn(`getUbicaciones: contenedor no encontrado: ${overlayContainerSelector}`);
         return;
     }
 
-    // ✅ Dimensiones naturales de la imagen
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
+    // Calcular escala manteniendo aspecto
+    const naturalW = img.naturalWidth;
+    const naturalH = img.naturalHeight;
+    const rect = container.getBoundingClientRect();
+    const containerW = Math.max(1, rect.width);
+    const containerH = Math.max(1, rect.height);
 
-    // ✅ Dimensiones actuales del contenedor
-    const containerRect = container.getBoundingClientRect();
-    const containerWidth = Math.max(1, containerRect.width);
-    const containerHeight = Math.max(1, containerRect.height);
+    const scale = (naturalW / naturalH) > (containerW / containerH)
+        ? containerW / naturalW
+        : containerH / naturalH;
 
-    // ✅ Calcular escala manteniendo aspecto
-    const scale = (naturalWidth / naturalHeight) > (containerWidth / containerHeight)
-        ? containerWidth / naturalWidth
-        : containerHeight / naturalHeight;
+    const scaledW = naturalW * scale;
+    const scaledH = naturalH * scale;
+    const offsetX = (containerW - scaledW) / 2;
+    const offsetY = (containerH - scaledH) / 2;
 
-    // ✅ Dimensiones visuales de la imagen escalada
-    const scaledWidth = naturalWidth * scale;
-    const scaledHeight = naturalHeight * scale;
+    // Procesar cada ubicación
+    drawData.forEach(el => {
+        const raw = cleanCoord(el[coordKey]);
+        if (!raw || raw === '0,0,0,0') return;
 
-    // ✅ Offset para centrar la imagen escalada dentro del contenedor
-    const offsetX = (containerWidth - scaledWidth) / 2;
-    const offsetY = (containerHeight - scaledHeight) / 2;
-
-    console.log('--- DEBUG getUbicaciones ---');
-    console.log('Imagen natural:', naturalWidth, 'x', naturalHeight);
-    console.log('Contenedor:', containerWidth, 'x', containerHeight);
-    console.log('Escala:', scale);
-    console.log('Imagen escalada:', scaledWidth, 'x', scaledHeight);
-    console.log('Offset de centrado:', offsetX, ',', offsetY);
-
-    // ✅ Procesar cada ubicación
-    data_ubic.forEach(element => {
-        const raw = element[config.coordKey];
-        if (!raw || typeof raw !== 'string') {
-            console.warn('⚠️ coordenada faltante o inválida:', config.coordKey, element);
-            return;
-        }
-
-        const coords = raw.split(',').map(x => parseFloat(x.trim()));
-        if (coords.length !== 4) {
-            console.warn('⚠️ formato de coordenada inválido (no 4 valores):', raw);
-            return;
-        }
-
-        if (!coords.every(c => !isNaN(c) && c >= 0 && c <= 1)) {
-            console.warn('⚠️ coordenada fuera de rango [0,1]:', coords);
-            return;
-        }
+        const coords = raw.split(',').map(Number);
+        if (coords.length !== 4 || coords.some(isNaN)) return;
 
         const [x1, y1, x2, y2] = coords;
+        if ([x1, y1, x2, y2].some(v => v < 0 || v > 1)) return;
 
-        // ✅ Convertir % → px en el espacio *escalado y centrado*
-        const viewX = offsetX + x1 * scaledWidth;
-        const viewY = offsetY + y1 * scaledHeight;
-        const viewWidth = (x2 - x1) * scaledWidth;
-        const viewHeight = (y2 - y1) * scaledHeight;
+        // Convertir % → px en el espacio escalado y centrado
+        const viewX = offsetX + x1 * scaledW;
+        const viewY = offsetY + y1 * scaledH;
+        const viewW = (x2 - x1) * scaledW;
+        const viewH = (y2 - y1) * scaledH;
 
-        // ✅ AJUSTE FINO: Corrección manual si el overlay se desborda
-        // Puedes ajustar estos valores según lo que veas en pantalla
-        const adjustmentX = 0; // Ajuste horizontal (positivo = hacia la derecha, negativo = hacia la izquierda)
-        const adjustmentY = 0; // Ajuste vertical (positivo = hacia abajo, negativo = hacia arriba)
+        if (viewW <= 0 || viewH <= 0) return;
 
-        const finalX = viewX + adjustmentX;
-        const finalY = viewY + adjustmentY;
-
-        console.log(`\nElemento ID: ${element.id || 'N/A'}`);
-        console.log('Coordenadas originales (%):', [x1, y1, x2, y2]);
-        console.log('Posición final (px):', { viewX, viewY, viewWidth, viewHeight });
-        console.log('Ajuste aplicado:', { adjustmentX, adjustmentY });
-        console.log('Posición final ajustada (px):', { finalX, finalY, viewWidth, viewHeight });
-
-        if (viewWidth <= 0 || viewHeight <= 0) {
-            console.warn('⚠️ área de tamaño cero o negativo:', { viewWidth, viewHeight });
-            return;
-        }
-
-        // ✅ Crear el overlay
+        // Crear el overlay
         crearArea({
-            x: Math.round(finalX),
-            y: Math.round(finalY),
-            width: Math.round(viewWidth),
-            height: Math.round(viewHeight)
-        }, element, overlayLayer);
+            x: Math.round(viewX),
+            y: Math.round(viewY),
+            width: Math.round(viewW),
+            height: Math.round(viewH)
+        }, el, overlayLayer);
     });
 }
 
+// === NUEVA FUNCIÓN: getUbicacionesMixto ===
+function getUbicacionesMixto() {
+    // Procesar Plano A (Diagrama)
+    getUbicaciones({
+        coordKey: 'coord_perc',
+        imageSelector: '#fp-img3',
+        overlayContainerSelector: '#fp-canvas-container3'
+    });
+
+    // Procesar Plano B (Fotografía)
+    getUbicaciones({
+        coordKey: 'coord_perc2',
+        imageSelector: '#fp-img4',
+        overlayContainerSelector: '#fp-canvas-container4'
+    });
+}
+// Shortcuts
 function getUbic() {
     getUbicaciones({
         coordKey: 'coord_perc',
         imageSelector: '#fp-img',
-        mapSelector: '#fp-map',
         overlayContainerSelector: '#fp-canvas-container'
     });
 }
@@ -579,105 +354,45 @@ function getUbic2() {
     getUbicaciones({
         coordKey: 'coord_perc2',
         imageSelector: '#fp-img2',
-        mapSelector: '#fp-map2',
         overlayContainerSelector: '#fp-canvas-container2'
     });
 }
 
-function calcularCoordenadas(selector, perc) {
-    const imgW = $(selector).width();
-    const imgH = $(selector).height();
+// ─────────────────────────────────────────────────────────────
+// 5. MANEJO DE DATOS Y PERSISTENCIA
+// ─────────────────────────────────────────────────────────────
 
-    let x = imgW * perc[0];
-    let y = imgH * perc[1];
-    let width = Math.abs((imgW * perc[2]) - x);
-    let height = Math.abs((imgH * perc[3]) - y);
-
-    if ((imgW * perc[2]) - x < 0) x = x - width;
-    if ((imgH * perc[3]) - y < 0) y = y - height;
-
-    return { x, y, width, height };
-}
-function crearArea(coords, element, overlayLayer) {
-    console.log(coords);
-    console.log(element);
-    console.log(overlayLayer);
-
-
-
-    if (!overlayLayer) {
-        console.warn('crearArea: overlayLayer no válido');
-        return;
+function setImage(selector, base64Data) {
+    const el = document.querySelector(selector);
+    if (el && base64Data) {
+        el.src = 'data:image/png;base64,' + base64Data;
     }
-
-    const areaId = `ubic-area-${element.id || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const areaDiv = document.createElement('div');
-    areaDiv.id = areaId;
-    areaDiv.className = 'ubic area-animada';
-    areaDiv.dataset.itemid = element.id || '';
-
-    Object.assign(areaDiv.style, {
-        position: 'absolute',
-        top: coords.y + 'px',
-        left: coords.x + 'px',
-        width: coords.width + 'px',
-        height: coords.height + 'px',
-        border: '2px solid rgba(0, 120, 255, 0.8)',
-        'background-image': "url('https://img.icons8.com/external-dotted-line-kawalan-studio/32/external-dotted-line-interface-kawalan-studio.png')",
-        'background-repeat': 'repeat',
-        'background-size': '8px 8px',
-        'z-index': 1000,
-        'box-sizing': 'border-box',
-        'pointer-events': 'auto'
-    });
-
-    areaDiv.addEventListener('click', function (e) {
-        e.stopPropagation();
-        console.log('Clic en área:', areaId, element);
-        // Aquí puedes abrir detalle, resaltar fila, etc.
-    });
-
-    overlayLayer.appendChild(areaDiv);
 }
 
+function getPlanos() {
+    const raw = localStorage.getItem('data');
+    if (!raw) return;
 
-function getPlanos(params) {
-    const dataString = localStorage.getItem('data');
-
-    if (!dataString) {
-        console.warn('No hay datos en localStorage con la clave "data"');
-        return;
-    }
-
-    let datos;
+    let dataGrid;
     try {
-        datos = JSON.parse(dataString);
-    } catch (e) {
-        console.error('Error al parsear JSON de localStorage:', e);
-        return;
-    }
-
-    if (!Array.isArray(datos)) {
-        console.error('El valor de "data" en localStorage no es un array:', datos);
+        dataGrid = JSON.parse(raw);
+        if (!Array.isArray(dataGrid)) throw new Error();
+    } catch {
+        console.error('Datos inválidos en localStorage:data');
         return;
     }
 
     const data_cd_local = [];
-
-    datos.forEach(element => {
-        const tipoPlano = element.tipo_plano || element.name_plano || '';
+    dataGrid.forEach(item => {
+        const tipoPlano = item.tipo_plano || item.name_plano || '';
         localStorage.setItem('select', tipoPlano);
-        setImage('.fp-img', element.img1);
-        setImage('#fp-img2', element.img2);
 
-        const planograma = element.Planograma;
-        if (!planograma || Object.keys(planograma).length === 0) {
-            Swal.fire({
-                icon: 'info',
-                html: 'Planograma sin ubicaciones mapeadas.',
-                showCloseButton: true,
-                confirmButtonColor: '#6B949D'
-            });
+        setImage('.fp-img', item.img1);
+        setImage('#fp-img2', item.img2);
+
+        const planograma = item.Planograma || {};
+        if (Object.keys(planograma).length === 0) {
+            Swal.fire({ icon: 'info', html: 'Planograma sin ubicaciones mapeadas.', confirmButtonColor: '#6B949D' });
             return;
         }
 
@@ -688,394 +403,196 @@ function getPlanos(params) {
     });
 
     if (data_cd_local.length > 0) {
-        mapped_area(data_cd_local);
-        mapped_area2(data_cd_local);
-    } else {
-        console.warn('No se encontraron coordenadas para mapear.');
+        drawAreas(data_cd_local, '#fp-img', '#fp-map', 'coord_perc');
+        drawAreas(data_cd_local, '#fp-img3', '#fp-map3', 'coord_perc');
+        drawAreas(data_cd_local, '#fp-img2', '#fp-map2', 'coord_perc2');
+        drawAreas(data_cd_local, '#fp-img4', '#fp-map4', 'coord_perc2');
     }
 }
 
-function setImage(selector, base64Data) {
-    if (base64Data) {
-        const imgSrc = 'data:image/png;base64,' + base64Data;
-        const imgEl = document.querySelector(selector);
-        if (imgEl) imgEl.setAttribute('src', imgSrc);
-    }
-}
+// ─────────────────────────────────────────────────────────────
+// 6. CONTROL DE VISTAS (DIAGRAMA / FOTO / MIXTO)
+// ─────────────────────────────────────────────────────────────
 
-function saveSeccionesCord1() {
-    $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
-    getPlanos();
-}
 function show_plane(tipo_plano) {
-    if (tipo_plano === "diagrama") {
-        $("#cancel").trigger("click");
-        localStorage.setItem("tp_plano", tipo_plano);
-        $('div#fp-canvas-container3 > img, div#fp-canvas-container4 > img').remove();
-        $("#fp-canvas-container").show();
-        $("#fp-canvas-container2").hide();
-        $("#pl_mixto").hide();
 
+    // Reset zoom al cambiar de vista
+    if (tipo_plano !== 'mixto') {
+        zoomState.diagrama.scale = 1.0;
+        zoomState.fotografia.scale = 1.0;
+        updateZoom('zoom-wrapper-diagrama', 1.0);
+        updateZoom('zoom-wrapper-fotografia', 1.0);
+    }
+    localStorage.setItem('tp_plano', tipo_plano);
+    $('#cancel').trigger('click');
+
+    // Limpiar contenedores mixtos
+    $('#fp-canvas-container3 img, #fp-canvas-container4 img').remove();
+
+    if (tipo_plano === 'diagrama') {
+        $('#fp-canvas-container').show();
+        $('#fp-canvas-container2, #pl_mixto').hide();
         getPlanos();
         getUbic();
-    } else if (tipo_plano === "fotografia") {
-        localStorage.setItem("tp_plano", tipo_plano);
-        $('div#fp-canvas-container3 > img, div#fp-canvas-container4 > img').remove();
-        $("#fp-canvas-container").hide();
-        $("#pl_mixto").hide();
-        $("#fp-canvas-container2").show();
-
-        // Inicializar / ajustar zoom para fotografía
-
+    } else if (tipo_plano === 'fotografia') {
+        $('#fp-canvas-container2').show();
+        $('#fp-canvas-container, #pl_mixto').hide();
         getPlanos();
         getUbic2();
-    } else if (tipo_plano === "mixto") {
-        $("#fp-canvas-container, #fp-canvas-container2").hide();
-        localStorage.setItem("tp_plano", tipo_plano);
+    } else if (tipo_plano === 'mixto') {
+        $('#pl_mixto').show();
+        $('#fp-canvas-container, #fp-canvas-container2').hide();
 
-        const imgData = JSON.parse(localStorage.getItem('data') || '[]')[0] || {};
-        const img1 = imgData.img1 || '';
-        const img2 = imgData.img2 || '';
+        const item = JSON.parse(localStorage.getItem('data') || '[]')[0] || {};
 
-        // Limpiar y recrear imágenes mixtas
-        $('div#fp-canvas-container3 > img, div#fp-canvas-container4 > img').remove();
+        // Crear imágenes
+        const imgA = `<img src="data:image/png;base64,${item.img1}" class="img-fluid fp-img3" id="fp-img3" usemap="#fp-map3">`;
+        const imgB = `<img src="data:image/png;base64,${item.img2}" class="img-fluid fp-img4" id="fp-img4" usemap="#fp-map4">`;
 
-        // Plano A
-        const imgA = document.createElement("img");
-        imgA.src = 'data:image/png;base64,' + img1;
-        imgA.className = 'img-fluid fp-img3';
-        imgA.alt = "Plano A";
-        imgA.id = "fp-img3";
-        imgA.useMap = "#fp-map3";
-        document.getElementById('fp-canvas-container3').appendChild(imgA);
+        $('#fp-canvas-container3').append(imgA);
+        $('#fp-canvas-container4').append(imgB);
 
-        // Plano B
-        const imgB = document.createElement("img");
-        imgB.src = 'data:image/png;base64,' + img2;
-        imgB.className = 'img-fluid fp-img4';
-        imgB.alt = "Plano B";
-        imgB.id = "fp-img4";
-        imgB.useMap = "#fp-map4";
-        document.getElementById('fp-canvas-container4').appendChild(imgB);
+        // Asegurar que los overlays existan
+        if (!$('#overlay-layer-mixto-A').length) {
+            $('#fp-canvas-container3').append('<div id="overlay-layer-mixto-A" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>');
+        }
+        if (!$('#overlay-layer-mixto-B').length) {
+            $('#fp-canvas-container4').append('<div id="overlay-layer-mixto-B" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>');
+        }
 
-        $("#pl_mixto").show();
-
-        // Inicializar / ajustar ambos zooms (puedes tener handlers separados si los necesitas)
         getPlanos();
-        getUbic();
-        getUbic2();
+        getUbicacionesMixto(); // ← Aquí está la clave!
     }
 
     return tipo_plano;
 }
 
-function send_ubic(ubic_bod, tipo_plano) {
-    for (const dato of ubic_bod) {
-        if (dato.status === true) {
-            localStorage.setItem('code_ubicacion', dato.cod_bodega);
-            localStorage.setItem('plano', dato.plano);
-            localStorage.setItem('id_corp', dato.id_corp);
-            localStorage.setItem('id_suc', dato.id_suc);
-            $("#map_area").trigger("click");
-        } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: dato.msg
-            });
-        }
-    }
-    return ubic_bod;
-}
+// ─────────────────────────────────────────────────────────────
+// 7. FLUJO PRINCIPAL (INICIALIZACIÓN Y MAPPING)
+// ─────────────────────────────────────────────────────────────
 
-function showConfirmation(params) {
-    Swal.fire({
-        title: '¿Quieres guardar las coordenadas?',
-        icon: 'question',
-        iconColor: '#6B949D',
-        color: '#333',
-        background: '#fafafa',
-        html: `
-            <p style="margin: 0; font-size: 16px; color: #333;">
-                Se guardarán los cambios realizados en las ubicaciones.
-            </p>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#6B949D',
-        cancelButtonColor: '#B5BCC3',
-        buttonsStyling: true
-    }).then((result) => {
-        if (result.isConfirmed) {
-            $("#mapped-form").trigger("submit");
-            Swal.fire({
-                icon: 'success',
-                iconColor: '#6B949D',
-                color: '#6B949D',
-                background: '#f8f9fa',
-                html: '<p style="margin: 0; font-weight: bold;">Coordenadas guardadas</p><p style="margin: 0;">exitosamente</p>',
-                showConfirmButton: true,
-                confirmButtonColor: '#6B949D',
-                timer: 2000,
-                timerProgressBar: true
-            });
-        } else if (result.dismiss === Swal.DismissReason.cancel) {
-            limpiarCanvasYEstado();
-        }
-    });
-}
-
-function limpiarCanvasYEstado() {
-    $('#fp-canvas, #fp-canvas2, #fp-canvas3, #fp-canvas4').addClass('d-none');
-
-    if (canvasState.A.ctx) canvasState.A.ctx.clearRect(0, 0, $('#fp-canvas')[0].width, $('#fp-canvas')[0].height);
-    if (canvasState.B.ctx) canvasState.B.ctx.clearRect(0, 0, $('#fp-canvas2')[0].width, $('#fp-canvas2')[0].height);
-
-    const c3 = $('#fp-canvas3')[0], c4 = $('#fp-canvas4')[0];
-    if (c3 && c3.getContext) c3.getContext('2d').clearRect(0, 0, c3.width, c3.height);
-    if (c4 && c4.getContext) c4.getContext('2d').clearRect(0, 0, c4.width, c4.height);
-
-    const reset = (cs) => {
-        cs.percent = { x1: 0, y1: 0, x2: 0, y2: 0 };
-        cs.mouseStart = { x: 0, y: 0 };
-        cs.mouseEnd = { x: 0, y: 0 };
-        cs.isDrawing = false;
-    };
-    reset(canvasState.A);
-    reset(canvasState.B);
-    reset(canvasState.mixto.A);
-    reset(canvasState.mixto.B);
-
-    canvasState.A.isDrawingMode = false;
-    canvasState.B.isDrawingMode = false;
-    canvasState.mixto.A.isDrawingMode = false;
-    canvasState.mixto.B.isDrawingMode = false;
-}
-
-function resetAllCanvasState() {
-    limpiarCanvasYEstado();
-}
-
-/*metodo al precionar el grip desde mba3 nos devuelve los datos para graficar las coordenadas en los planos*/
 function draw_coord(dataJson) {
-    localStorage.setItem('mapped_ubic_press', JSON.stringify(dataJson));
-
-    const isInvalid =
-        !dataJson ||
-        typeof dataJson !== 'object' ||
-        !Array.isArray(dataJson.Planograma) ||
-        dataJson.Planograma.length === 0 ||
-        !dataJson.Planograma[0];
-
-    if (isInvalid) {
-        //localStorage.setItem('data', '[]');
-        getPlanos();
-        getUbic();
-        getUbic2();
-
-        Swal.fire({
-            toast: true,
-            icon: 'warning',
-            title: `Producto sin ubicación en el planograma`,
-            position: 'top',
-            showConfirmButton: false,
-            confirmButtonColor: '#6B949D',
-            timer: 1500,
-            timerProgressBar: true
-        });
+    const invalid = !dataJson || !Array.isArray(dataJson.Planograma) || !dataJson.Planograma[0];
+    if (invalid) {
+        Swal.fire({ toast: true, icon: 'warning', title: 'Producto sin ubicación en el planograma', position: 'top', timer: 1500, timerProgressBar: true });
         return;
     }
 
-    const planoBase = dataJson.Planograma[0];
-    const datos = [{
-        cod_ubi: planoBase.cod_ubi,
-        coord_perc: planoBase.coord_perc,
-        coord_perc2: planoBase.coord_perc2,
-        id: planoBase.id,
-        color: planoBase.color,
-        tipo_plano: planoBase.tipo_plano
-    }];
+    localStorage.setItem('mapped_ubic_press', JSON.stringify(dataJson));
 
-    // Agrega ubicaciones adicionales del subplanograma
-    const subPlanos = Array.isArray(planoBase.Planograma) ? planoBase.Planograma : [];
-    subPlanos.forEach(p => {
-        datos.push({
-            cod_ubi: p.cod_ubi,
-            coord_perc: p.coord_perc,
-            coord_perc2: p.coord_perc2,
-            id: p.id,
-            color: p.color,
-            tipo_plano: planoBase.tipo_plano
-        });
-    });
+    const base = dataJson.Planograma[0];
+    const sub = Array.isArray(base.Planograma) ? base.Planograma : [];
+
+    const flat = [base, ...sub].map(p => ({
+        cod_ubi: p.cod_ubi,
+        coord_perc: p.coord_perc,
+        coord_perc2: p.coord_perc2,
+        id: p.id,
+        color: p.color,
+        tipo_plano: p.tipo_plano || base.tipo_plano
+    }));
 
     const dataGrid = [{
-        Planograma: datos,
-        codigo: planoBase.id,
-        img1: planoBase.imagen1,
-        img2: planoBase.imagen2,
-        name_plano: planoBase.tipo_plano
+        Planograma: flat,
+        codigo: base.id,
+        img1: base.imagen1,
+        img2: base.imagen2,
+        name_plano: base.tipo_plano
     }];
 
     localStorage.setItem('data', JSON.stringify(dataGrid));
     getPlanos();
 
-    const storage_plano = localStorage.getItem('select');
-    const data_plano = dataJson.Planograma;
-    function isZeroCoord(coord) {
-        return coord === "0,0,0,0";
-    }
+    const tipoSeleccionado = localStorage.getItem('tp_plano');
+    let message = '';
 
-    function isZeroCoord(coord) {
-        return coord === "0,0,0,0";
-    }
+    for (const el of dataJson.Planograma) {
+        const c1 = cleanCoord(el.coord_perc);
+        const c2 = cleanCoord(el.coord_perc2);
+        const c1Zero = isZeroCoord(c1);
+        const c2Zero = isZeroCoord(c2);
 
-    let coincidencia = null;
-    let mensaje_coincidencia = "";
+        switch (tipoSeleccionado) {
+            case 'diagrama':
+                if (!c1Zero && c2Zero) return show_plane('diagrama');
+                else if (c1Zero && !c2Zero) message = 'Ubicación pertenece a Fotografía';
+                else if (!c1Zero && !c2Zero) message = 'Ubicación pertenece a Mixto';
+                else message = 'Ubicación inválida para Diagrama';
+                break;
 
-    const tipoSeleccionado = localStorage.getItem("tp_plano");
+            case 'fotografia':
+                if (!c2Zero && c1Zero) return show_plane('fotografia');
+                else if (!c1Zero && c2Zero) message = 'Ubicación pertenece a Plano';
+                else if (!c1Zero && !c2Zero) message = 'Ubicación pertenece a Mixto';
+                else message = 'Ubicación inválida para Fotografía';
+                break;
 
-    for (const element of data_plano) {
-        if (element.tipo_plano !== storage_plano) continue;
+            case 'mixto':
+                if (!c1Zero && !c2Zero) return show_plane('mixto');
+                else if (!c1Zero && c2Zero) message = 'Ubicación pertenece a Plano';
+                else if (c1Zero && !c2Zero) message = 'Ubicación pertenece a Fotografía';
+                else message = 'Ubicación inválida para Mixto';
+                break;
 
-        const coord1 = cleanCoord(element.coord_perc);
-        const coord2 = cleanCoord(element.coord_perc2);
-
-        const coord1EsCero = isZeroCoord(coord1);
-        const coord2EsCero = isZeroCoord(coord2);
-
-        if (tipoSeleccionado === "diagrama") {
-            if (!coord1EsCero && coord2EsCero) {
-                coincidencia = true;
-            } else if (coord1EsCero && !coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Fotografía";
-            } else if (!coord1EsCero && !coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Mixto";
-            } else {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación inválida para Diagrama";
-            }
-
-            show_plane("diagrama");
-            getUbic2();
-
-        } else if (tipoSeleccionado === "fotografia") {
-            if (!coord2EsCero && coord1EsCero) {
-                coincidencia = true;
-            } else if (!coord1EsCero && coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Plano";
-            } else if (!coord1EsCero && !coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Mixto";
-            } else {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación inválida para Fotografía";
-            }
-            show_plane("fotografia");
-            getUbic();
-
-        } else if (tipoSeleccionado === "mixto") {
-            if (!coord1EsCero && !coord2EsCero) {
-                coincidencia = true;
-                show_plane("mixto");
-                getUbic();
-                getUbic2();
-            } else if (!coord1EsCero && coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Plano";
-            } else if (coord1EsCero && !coord2EsCero) {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación pertenece a Fotografía";
-            } else {
-                coincidencia = false;
-                mensaje_coincidencia = "Ubicación inválida para Mixto";
-            }
-
-        }
-
-        // Si ya determinaste que es no válido, puedes salir del loop para no sobreescribir ni repetir lógicas.
-        if (coincidencia === false) {
-            break;
+            default:
+                return show_plane('diagrama');
         }
     }
-    // Forzar ajuste final tras actualizar la vista
-    setTimeout(() => {
-        const tp = localStorage.getItem('tp_plano');
-        if (tp === 'diagrama' && zoomHandlers.diagrama) {
-            zoomHandlers.diagrama.fitToContainer();
-        } else if (tp === 'fotografia' && zoomHandlers.fotografia) {
-            zoomHandlers.fotografia.fitToContainer();
-        } else if (tp === 'mixto') {
-            if (zoomHandlers.diagrama) zoomHandlers.diagrama.fitToContainer(); // o mixtoA
-            if (zoomHandlers.fotografia) zoomHandlers.fotografia.fitToContainer(); // o mixtoB
-        }
-    }, 50); // 50ms da margen al DOM para renderizar
-    console.log(mensaje_coincidencia);
 
-    // SweetAlert2 en vez de alert, solo una vez:
-    // if (coincidencia === false) {
-    //     Swal.fire({
-    //         title: 'Advertencia',
-    //         iconColor: '#6B949D',
-    //         text: mensaje_coincidencia,
-    //         icon: 'warning',
-    //         timer: 2500, // milisegundos: 2.5 segundos
-    //         showConfirmButton: false,
-    //         position: 'top',
-    //         toast: true,
-    //         timerProgressBar: true
-    //     });
-    // }
+    if (message) {
+        Swal.fire({ icon: 'info', text: message, confirmButtonColor: '#6B949D' });
+    }
+}
+//________________________________________________________________
+//ZOOM METODOS
+//________________________________________________________________
 
+function updateZoom(wrapperId, scale) {
+    const el = document.getElementById(wrapperId);
+    if (!el) return;
+    el.style.transform = `scale(${scale})`;
 }
 
-function cleanCoord(coord) {
-    return typeof coord === 'string' ? coord.replace(/\s/g, '') : '';
+function zoomIn(mode) {
+    const state = zoomState[mode];
+    if (!state) return;
+    state.scale = Math.min(state.max, state.scale + state.step);
+    updateZoom(
+        mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia',
+        state.scale
+    );
+    // Re-render overlays para ajustar posición tras zoom visual
+    if (mode === 'diagrama') getUbic();
+    else if (mode === 'fotografia') getUbic2();
 }
 
-/*Funcion envia datos desde MBA3 A web plano por defuat*/
-function config_all(dataJson) {
-
-    localStorage.setItem('press', false);
-    for (let index = 0; index < dataJson.length; index++) {
-        const datos_json = dataJson[index];
-        if (datos_json.img1 === '') {
-            Swal.fire({
-                icon: 'info',
-                html: 'No existen Planos configurados ',
-                showCloseButton: true,
-                showCancelButton: false,
-                focusConfirm: false,
-                cancelButtonColor: '#6B949D',
-            })
-        } else if (datos_json.img2 === '') {
-            Swal.fire({
-                icon: 'info',
-                html: 'No existen Planos configurados ',
-                showCloseButton: true,
-                showCancelButton: false,
-                focusConfirm: false,
-                cancelButtonColor: '#6B949D',
-
-            })
-
-
-        } else {
-            if (datos_json.Planograma === '') {
-                dataJson[index].Planograma = [];
-            }
-
-            localStorage.setItem('data', JSON.stringify(dataJson));
-            var tipo_plano = "diagrama";
-            show_plane(tipo_plano);
-            getPlanos()
-
-        }
-
+function zoomOut(mode) {
+    const state = zoomState[mode];
+    if (!state) return;
+    state.scale = Math.max(state.min, state.scale - state.step);
+    updateZoom(
+        mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia',
+        state.scale
+    );
+    if (mode === 'diagrama') getUbic();
+    else if (mode === 'fotografia') getUbic2();
+}
+function handleZoom(isZoomIn) {
+    const modo = localStorage.getItem('tp_plano');
+    if (modo === 'mixto') {
+        Swal.fire({ icon: 'info', text: 'Zoom no disponible en modo Mixto.', timer: 1200, showConfirmButton: false });
+        return;
+    }
+    if (modo === 'diagrama' || modo === 'fotografia') {
+        isZoomIn ? zoomIn(modo) : zoomOut(modo);
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 8. INICIALIZACIÓN
+// ─────────────────────────────────────────────────────────────
+
+$(function () {
+    // Si existe data en localStorage, se usa; sino, espera dataJson externa.
+    draw_coord(dataJson)
+});
