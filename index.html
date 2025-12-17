@@ -17,12 +17,15 @@
 
     <div class="container-fluid text-center">
         <div class="btn-group pt-2" role="group" aria-label="Button group with nested dropdown">
-            <button type="button" class="btn btn-secondary" onclick="handleZoom(true)">Zoom +</button>
-            <button type="button" class="btn btn-secondary" onclick="handleZoom(false)">Zoom -</button>
+            <button type="button" class="btn btn-secondary" onclick="zoom_mas()">Zoom +</button>
+            <button type="button" class="btn btn-secondary" onclick="zoom_menos()">Zoom -</button>
+            <button type="button" class="btn btn-secondary" onclick="zoom_default()">
+                <i class="fa-solid fa-magnifying-glass"></i> 1:1
+            </button>
             <button type="button" class="btn btn-secondary" onclick="show_plane('diagrama')">Diagrama</button>
             <button type="button" class="btn btn-secondary" onclick="show_plane('fotografia')">Fotografía</button>
             <button type="button" class="btn btn-secondary" onclick="show_plane('mixto')">Mixto</button>
-
+            <button type="button" class="btn btn-secondary" onclick="send_ubic()">Mapear</button>
             <div class="btn-group" role="group">
                 <button id="btnGroupDrop1" type="button" class="btn btn-secondary dropdown-toggle"
                     data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

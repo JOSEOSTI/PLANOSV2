@@ -49,31 +49,49 @@ let data_plano = JSON.parse(localStorage.getItem('mapped') || '[]');
 let data_plano2 = JSON.parse(localStorage.getItem('mapped2') || '[]');
 
 const zoomState = {
-  diagrama: {
-    scale: 1.0,
-    min: 0.5,
-    max: 3.0,
-    step: 0.25,
-    translateX: 0,
-    translateY: 0,
-    isDragging: false,
-    startX: 0,
-    startY: 0
-  },
-  fotografia: {
-    scale: 1.0,
-    min: 0.5,
-    max: 3.0,
-    step: 0.25,
-    translateX: 0,
-    translateY: 0,
-    isDragging: false,
-    startX: 0,
-    startY: 0
-  }
+    diagrama: {
+        scale: 1.0,
+        min: 0.5,
+        max: 3.0,
+        step: 0.25,
+        translateX: 0,
+        translateY: 0,
+        isDragging: false,
+        startX: 0,
+        startY: 0
+    },
+    fotografia: {
+        scale: 1.0,
+        min: 0.5,
+        max: 3.0,
+        step: 0.25,
+        translateX: 0,
+        translateY: 0,
+        isDragging: false,
+        startX: 0,
+        startY: 0
+    }
+};
+// Estado del mapeo
+let mappingState = {
+  isActive: false,
+  startX: 0, startY: 0,
+  currentRect: null,
+  targetContainer: null,
+  targetImage: null,
+  targetType: '', // 'diagrama', 'fotografia', 'mixto-A', 'mixto-B'
+  mode: 'create',
+  currentPhase: 'A', // Solo para mixto: 'A' o 'B'
+  savedCoordsA: null, // Coordenadas guardadas en A
 };
 
-
+// Áreas guardadas (persistidas en localStorage)
+let savedAreas = {
+  diagrama: [],
+  fotografia: [],
+  mixtoA: [],
+  mixtoB: []
+};
 
 // ─────────────────────────────────────────────────────────────
 // 2. UTILIDADES
@@ -570,144 +588,655 @@ function draw_coord(dataJson) {
 //________________________________________________________________
 
 function updateZoom(wrapperId, scale) {
-  const el = document.getElementById(wrapperId);
-  if (!el) return;
-  el.style.transform = `scale(${scale}) translate(${zoomState.diagrama.translateX}px, ${zoomState.diagrama.translateY}px)`;
+    const el = document.getElementById(wrapperId);
+    if (!el) return;
+    el.style.transform = `scale(${scale}) translate(${zoomState.diagrama.translateX}px, ${zoomState.diagrama.translateY}px)`;
 }
 
-function zoomIn(mode) {
+function zoom_mas() {
+    const mode = getActiveMode();
+    if (!mode) return;
+
     const state = zoomState[mode];
-    if (!state) return;
+    if (state.isDragging) {
+        console.log('Zoom cancelado: arrastre en curso');
+        return;
+    }
+
     state.scale = Math.min(state.max, state.scale + state.step);
     updateZoom(
         mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia',
         state.scale
     );
-    // Re-render overlays para ajustar posición tras zoom visual
-    if (mode === 'diagrama') getUbic();
-    else if (mode === 'fotografia') getUbic2();
+    // Re-render overlays
+    mode === 'diagrama' ? getUbic() : getUbic2();
 }
 
-function zoomOut(mode) {
+function zoom_menos() {
+    const mode = getActiveMode();
+    if (!mode) return;
+
     const state = zoomState[mode];
-    if (!state) return;
+    if (state.isDragging) {
+        console.log('Zoom cancelado: arrastre en curso');
+        return;
+    }
+
     state.scale = Math.max(state.min, state.scale - state.step);
     updateZoom(
         mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia',
         state.scale
     );
-    if (mode === 'diagrama') getUbic();
-    else if (mode === 'fotografia') getUbic2();
+    mode === 'diagrama' ? getUbic() : getUbic2();
 }
-function handleZoom(isZoomIn) {
-  const modo = localStorage.getItem('tp_plano');
-  if (modo === 'mixto') {
-    Swal.fire({ icon: 'info', text: 'Zoom no disponible en modo Mixto.', timer: 1200, showConfirmButton: false });
-    return;
-  }
+function getActiveMode() {
+    const modo = localStorage.getItem('tp_plano');
+    if (modo === 'mixto') {
+        Swal.fire({
+            icon: 'info',
+            text: 'Zoom no disponible en modo Mixto.',
+            timer: 1200,
+            showConfirmButton: false
+        });
+        return null;
+    }
+    if (modo !== 'diagrama' && modo !== 'fotografia') {
+        console.warn('Modo de zoom desconocido:', modo);
+        return null;
+    }
+    return modo;
+}
+function zoom_default() {
+    const mode = getActiveMode(); // ✅ Reusa la función segura que definimos antes
+    if (!mode) return;
 
-  // Si está arrastrando, no hacer zoom
-  if (zoomState[modo].isDragging) return;
+    const state = zoomState[mode];
+    if (state.isDragging) {
+        console.log('Zoom reset cancelado: arrastre en curso');
+        return;
+    }
 
-  if (modo === 'diagrama' || modo === 'fotografia') {
-    isZoomIn ? zoomIn(modo) : zoomOut(modo);
-  }
+    // ✅ Restablece la escala al valor por defecto (típicamente 1)
+    state.scale = 1;
+
+    // ✅ Aplica el zoom visual
+    updateZoom(
+        mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia',
+        state.scale
+    );
+
+    // ✅ Opcional: también restablece scroll/desplazamiento
+    const wrapper = document.getElementById(
+        mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia'
+    );
+    if (wrapper) {
+        wrapper.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+
+    // ✅ Repintar overlays en posición original (100% necesario tras zoom)
+    if (mode === 'diagrama') {
+        getUbic();
+    } else if (mode === 'fotografia') {
+        getUbic2();
+    }
 }
 // ─────────────────────────────────────────────────────────────
 // 8. Dragrable
 // ──____________________________________________________________
 function startDrag(e, mode) {
-  const state = zoomState[mode];
-  if (!state) return;
+    const state = zoomState[mode];
+    if (!state) return;
 
-  state.isDragging = true;
-  state.startX = e.clientX - state.translateX;
-  state.startY = e.clientY - state.translateY;
-  document.body.style.cursor = 'grabbing';
+    state.isDragging = true;
+    state.startX = e.clientX - state.translateX;
+    state.startY = e.clientY - state.translateY;
+    document.body.style.cursor = 'grabbing';
 }
 
 function dragMove(e, mode) {
-  const state = zoomState[mode];
-  if (!state.isDragging) return;
+    const state = zoomState[mode];
+    if (!state.isDragging) return;
 
-  // Calcular nueva posición
-  const newX = e.clientX - state.startX;
-  const newY = e.clientY - state.startY;
+    // Calcular nueva posición
+    const newX = e.clientX - state.startX;
+    const newY = e.clientY - state.startY;
 
-  // Aplicar límites para no salir del contenedor
-  const wrapper = document.getElementById(
-    mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia'
-  );
-  if (!wrapper) return;
+    // Aplicar límites para no salir del contenedor
+    const wrapper = document.getElementById(
+        mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia'
+    );
+    if (!wrapper) return;
 
-  const container = wrapper.parentElement; // fp-canvas-container
-  const containerRect = container.getBoundingClientRect();
-  const wrapperRect = wrapper.getBoundingClientRect();
+    const container = wrapper.parentElement; // fp-canvas-container
+    const containerRect = container.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
 
-  // Límites: no permitir que la imagen se salga del contenedor
-  const maxTranslateX = Math.max(0, (wrapperRect.width - containerRect.width) / 2);
-  const maxTranslateY = Math.max(0, (wrapperRect.height - containerRect.height) / 2);
+    // Límites: no permitir que la imagen se salga del contenedor
+    const maxTranslateX = Math.max(0, (wrapperRect.width - containerRect.width) / 2);
+    const maxTranslateY = Math.max(0, (wrapperRect.height - containerRect.height) / 2);
 
-  state.translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newX));
-  state.translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newY));
+    state.translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newX));
+    state.translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newY));
 
-  updateTransform(mode);
+    updateTransform(mode);
 }
-
 function endDrag(mode) {
-  const state = zoomState[mode];
-  if (!state.isDragging) return;
-  state.isDragging = false;
-  document.body.style.cursor = 'default';
+    const state = zoomState[mode];
+    if (!state.isDragging) return;
+    state.isDragging = false;
+    document.body.style.cursor = 'default';
 }
 
 function updateTransform(mode) {
-  const state = zoomState[mode];
-  const wrapperId = mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia';
-  const el = document.getElementById(wrapperId);
-  if (!el) return;
+    const state = zoomState[mode];
+    const wrapperId = mode === 'diagrama' ? 'zoom-wrapper-diagrama' : 'zoom-wrapper-fotografia';
+    const el = document.getElementById(wrapperId);
+    if (!el) return;
 
-  el.style.transform = `scale(${state.scale}) translate(${state.translateX}px, ${state.translateY}px)`;
+    el.style.transform = `scale(${state.scale}) translate(${state.translateX}px, ${state.translateY}px)`;
+}
+// ─────────────────────────────────────────────────────────────
+// 8. Zona Mapear
+// ─────────────────────────────────────────────────────────────
+function loadSavedAreas() {
+  try {
+    const stored = localStorage.getItem('saved_areas');
+    if (stored) {
+      savedAreas = JSON.parse(stored);
+      console.log('✅ Áreas cargadas:', savedAreas);
+    }
+  } catch (e) {
+    console.warn('⚠️ Error al cargar áreas:', e);
+    savedAreas = { diagrama: [], fotografia: [], mixtoA: [], mixtoB: [] };
+  }
+}
+
+// Llamar al cargar la página
+document.addEventListener('DOMContentLoaded', loadSavedAreas);
+function send_ubic() {
+  const ubic_bod = [{
+    "status": true,
+    "cod_bodega": "TA0001NA33",
+    "plano": "Almacen Planograma",
+    "id_corp": "ALVMX",
+    "id_suc": "PRI"
+  }];
+
+  for (const dato of ubic_bod) {
+    if (dato.status === true) {
+      localStorage.setItem('code_ubicacion', dato.cod_bodega);
+      localStorage.setItem('plano', dato.plano);
+      localStorage.setItem('id_corp', dato.id_corp);
+      localStorage.setItem('id_suc', dato.id_suc);
+
+      activateMappingMode();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: dato.msg });
+    }
+  }
+}
+function activateMappingMode() {
+  const tp = localStorage.getItem('tp_plano');
+
+  // Ocultar botón "Trabajar Plano"
+  $("#map_area").hide();
+
+  // Mostrar controles de mapeo
+  $("#add_seccion, #save, #secciones").show();
+
+  // ✅ Determinar contenedor e imagen según modo
+  if (tp === 'diagrama') {
+    mappingState.targetContainer = document.getElementById('zoom-wrapper-diagrama');
+    mappingState.targetImage = document.getElementById('fp-img');
+    mappingState.targetType = 'diagrama';
+    mappingState.currentPhase = 'A'; // No aplica, pero por consistencia
+  } else if (tp === 'fotografia') {
+    mappingState.targetContainer = document.getElementById('zoom-wrapper-fotografia');
+    mappingState.targetImage = document.getElementById('fp-img2');
+    mappingState.targetType = 'fotografia';
+    mappingState.currentPhase = 'A';
+  } else if (tp === 'mixto') {
+    // Iniciar en A
+    mappingState.targetContainer = document.getElementById('fp-canvas-container3');
+    mappingState.targetImage = document.getElementById('fp-img3');
+    mappingState.targetType = 'mixtoA';
+    mappingState.currentPhase = 'A';
+    mappingState.savedCoordsA = null; // Limpiar
+
+    // Mostrar mensaje informativo
+    Swal.fire({
+      icon: 'info',
+      title: 'Modo Mixto Activo',
+      html: 'Primero mapea la zona en el panel izquierdo (A).<br>Luego, se activará el panel derecho (B).',
+      timer: 5000,
+      showConfirmButton: false
+    });
+  }
+
+  // ✅ Verificar que imagen esté cargada
+  if (!mappingState.targetImage || mappingState.targetImage.naturalWidth === 0) {
+    Swal.fire({ icon: 'warning', text: 'Imagen no cargada. Espera un momento.' });
+    mappingState.targetImage?.addEventListener('load', activateMappingMode, { once: true });
+    return;
+  }
+
+  // ✅ Habilitar listeners
+  mappingState.isActive = true;
+
+  mappingState.targetContainer.style.cursor = 'crosshair';
+  mappingState.targetContainer.addEventListener('mousedown', startMapping);
+  mappingState.targetContainer.addEventListener('mousemove', updateMapping);
+  mappingState.targetContainer.addEventListener('mouseup', endMapping);
+  mappingState.targetContainer.addEventListener('mouseleave', endMapping);
+}
+function startMapping(e) {
+  if (!mappingState.isActive) return;
+  e.preventDefault();
+
+  // Solo botón izquierdo
+  if (e.button !== 0) return;
+
+  const rect = mappingState.targetContainer.getBoundingClientRect();
+  mappingState.startX = e.clientX - rect.left;
+  mappingState.startY = e.clientY - rect.top;
+
+  // Crear preview del rectángulo
+  mappingState.currentRect = document.createElement('div');
+  Object.assign(mappingState.currentRect.style, {
+    position: 'absolute',
+    border: '2px dashed #00ff00',
+    backgroundColor: 'rgba(0,255,0,0.1)',
+    pointerEvents: 'none',
+    zIndex: 10000
+  });
+  mappingState.targetContainer.appendChild(mappingState.currentRect);
+}
+
+function updateMapping(e) {
+  if (!mappingState.currentRect || !mappingState.isActive) return;
+  e.preventDefault();
+
+  const rect = mappingState.targetContainer.getBoundingClientRect();
+  const currentX = e.clientX - rect.left;
+  const currentY = e.clientY - rect.top;
+
+  const x = Math.min(mappingState.startX, currentX);
+  const y = Math.min(mappingState.startY, currentY);
+  const width = Math.abs(currentX - mappingState.startX);
+  const height = Math.abs(currentY - mappingState.startY);
+
+  Object.assign(mappingState.currentRect.style, {
+    left: x + 'px',
+    top: y + 'px',
+    width: width + 'px',
+    height: height + 'px'
+  });
+}
+
+function endMapping(e) {
+  if (!mappingState.currentRect || !mappingState.isActive) return;
+  e.preventDefault();
+
+  // Remover preview
+  mappingState.currentRect.remove();
+  mappingState.currentRect = null;
+
+  const rect = mappingState.targetContainer.getBoundingClientRect();
+  const endX = e.clientX - rect.left;
+  const endY = e.clientY - rect.top;
+
+  const x1 = Math.min(mappingState.startX, endX);
+  const y1 = Math.min(mappingState.startY, endY);
+  const x2 = Math.max(mappingState.startX, endX);
+  const y2 = Math.max(mappingState.startY, endY);
+
+  const width = x2 - x1;
+  const height = y2 - y1;
+
+  // ✅ Validar tamaño mínimo
+  if (width < 20 || height < 20) {
+    Swal.fire({ icon: 'warning', text: 'Área demasiado pequeña. Vuelve a intentar.' });
+    return;
+  }
+
+  // ✅ Convertir a coordenadas normalizadas (0–1)
+  const img = mappingState.targetImage;
+  const containerRect = mappingState.targetContainer.getBoundingClientRect();
+  const imgRect = img.getBoundingClientRect();
+
+  const relX1 = x1 - (imgRect.left - containerRect.left);
+  const relY1 = y1 - (imgRect.top - containerRect.top);
+  const relX2 = x2 - (imgRect.left - containerRect.left);
+  const relY2 = y2 - (imgRect.top - containerRect.top);
+
+  const normX1 = Math.max(0, Math.min(1, relX1 / img.naturalWidth));
+  const normY1 = Math.max(0, Math.min(1, relY1 / img.naturalHeight));
+  const normX2 = Math.max(0, Math.min(1, relX2 / img.naturalWidth));
+  const normY2 = Math.max(0, Math.min(1, relY2 / img.naturalHeight));
+
+  const coords = [normX1, normY1, normX2, normY2].map(n => n.toFixed(4));
+
+  // ✅ Mostrar resultado y permitir guardar
+  Swal.fire({
+    title: mappingState.currentPhase === 'A' ? 'Zona A definida' : 'Zona B definida',
+    html: `<p><strong>Coordenadas (%):</strong><br>${coords.join(', ')}</p>
+           <small>¿Deseas guardar esta ubicación?</small>`,
+    showCancelButton: true,
+    confirmButtonText: 'Sí, guardar',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      if (mappingState.targetType === 'mixtoA') {
+        // Guardar en A y pasar a B
+        saveArea(coords, 'mixtoA');
+        switchToMixtoB();
+      } else if (mappingState.targetType === 'mixtoB') {
+        // Guardar en B y terminar
+        saveArea(coords, 'mixtoB');
+        // Opcional: mostrar mensaje de éxito
+        Swal.fire({
+          icon: 'success',
+          title: '¡Guardado!',
+          text: 'Ubicación completa guardada en Mixto A y B.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    }
+  });
+
+  // Desactivar modo mapeo (opcional: o mantener activo para múltiples)
+  // deactivateMappingMode();
+}
+function switchToMixtoB() {
+  // Desactivar listeners en A
+  mappingState.targetContainer.removeEventListener('mousedown', startMapping);
+  mappingState.targetContainer.removeEventListener('mousemove', updateMapping);
+  mappingState.targetContainer.removeEventListener('mouseup', endMapping);
+  mappingState.targetContainer.removeEventListener('mouseleave', endMapping);
+
+  // Cambiar a B
+  mappingState.targetContainer = document.getElementById('fp-canvas-container4');
+  mappingState.targetImage = document.getElementById('fp-img4');
+  mappingState.targetType = 'mixtoB';
+  mappingState.currentPhase = 'B';
+
+  // Habilitar listeners en B
+  mappingState.targetContainer.style.cursor = 'crosshair';
+  mappingState.targetContainer.addEventListener('mousedown', startMapping);
+  mappingState.targetContainer.addEventListener('mousemove', updateMapping);
+  mappingState.targetContainer.addEventListener('mouseup', endMapping);
+  mappingState.targetContainer.addEventListener('mouseleave', endMapping);
+
+  // Mostrar mensaje informativo
+  Swal.fire({
+    icon: 'info',
+    title: 'Ahora en Panel B',
+    html: 'Mapea la zona correspondiente en el panel derecho.<br>Al guardar, se asociarán ambas zonas.',
+    timer: 4000,
+    showConfirmButton: false
+  });
+}
+function saveArea(coords, type) {
+  const newArea = {
+    id: Date.now(),
+    coord_perc: coords.join(','), // "0.1234,0.2345,0.3456,0.4567"
+    desc: type === 'mixtoA' ? 'Zona A' : 'Zona B',
+    color: '#00ff00',
+    created: new Date().toISOString()
+  };
+
+  // Guardar en el array correspondiente
+  savedAreas[type].push(newArea);
+
+  // Persistir en localStorage
+  localStorage.setItem('saved_areas', JSON.stringify(savedAreas));
+
+  // Renderizar overlay
+  renderNewArea(newArea, type);
+
+  // Si es mixtoA, guardar coords para usar en B
+  if (type === 'mixtoA') {
+    mappingState.savedCoordsA = coords;
+  }
+}
+
+function renderNewArea(area, type) {
+  let overlayLayerId, imgSelector;
+  
+  switch (type) {
+    case 'diagrama':
+      overlayLayerId = 'overlay-layer-diagrama';
+      imgSelector = '#fp-img';
+      break;
+    case 'fotografia':
+      overlayLayerId = 'overlay-layer-fotografia';
+      imgSelector = '#fp-img2';
+      break;
+    case 'mixtoA':
+      overlayLayerId = 'overlay-layer-mixto-A';
+      imgSelector = '#fp-img3';
+      break;
+    case 'mixtoB':
+      overlayLayerId = 'overlay-layer-mixto-B';
+      imgSelector = '#fp-img4';
+      break;
+    default:
+      return;
+  }
+
+  const overlayLayer = document.getElementById(overlayLayerId);
+  if (!overlayLayer) return;
+
+  const coords = area.coord_perc.split(',').map(Number);
+  if (coords.length !== 4) return;
+
+  const [x1, y1, x2, y2] = coords;
+
+  const img = document.querySelector(imgSelector);
+  const container = document.getElementById(
+    type === 'diagrama' ? 'zoom-wrapper-diagrama' :
+    type === 'fotografia' ? 'zoom-wrapper-fotografia' :
+    type === 'mixtoA' ? 'fp-canvas-container3' : 'fp-canvas-container4'
+  );
+
+  if (!img || !container) return;
+
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+
+  const containerRect = container.getBoundingClientRect();
+  const cw = containerRect.width;
+  const ch = containerRect.height;
+
+  // Escala (asumiendo que usas fitToContainer o object-fit: contain)
+  const scale = Math.min(cw / iw, ch / ih);
+  const sw = iw * scale;
+  const sh = ih * scale;
+  const ox = (cw - sw) / 2;
+  const oy = (ch - sh) / 2;
+
+  const viewX = ox + x1 * sw;
+  const viewY = oy + y1 * sh;
+  const viewW = (x2 - x1) * sw;
+  const viewH = (y2 - y1) * sh;
+
+  // Crear overlay
+  const areaDiv = document.createElement('div');
+  areaDiv.className = 'ubic area-animada';
+  areaDiv.dataset.itemid = area.id;
+  areaDiv.style.position = 'absolute';
+  areaDiv.style.top = viewY + 'px';
+  areaDiv.style.left = viewX + 'px';
+  areaDiv.style.width = viewW + 'px';
+  areaDiv.style.height = viewH + 'px';
+  areaDiv.style.border = '2px solid rgba(0, 120, 255, 0.8)';
+  areaDiv.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
+  areaDiv.style.zIndex = 1000;
+  areaDiv.style.boxSizing = 'border-box';
+  areaDiv.style.pointerEvents = 'auto';
+
+  areaDiv.addEventListener('click', function (e) {
+    e.stopPropagation();
+    console.log('Clic en área:', area.id, area);
+    // Aquí puedes abrir detalle, resaltar fila, etc.
+  });
+
+  overlayLayer.appendChild(areaDiv);
+}
+function renderAllAreas() {
+  // Limpiar overlays existentes
+  ['overlay-layer-diagrama', 'overlay-layer-fotografia', 'overlay-layer-mixto-A', 'overlay-layer-mixto-B']
+    .forEach(id => {
+      const layer = document.getElementById(id);
+      if (layer) layer.innerHTML = '';
+    });
+
+  // Dibujar todas las áreas
+  for (const type in savedAreas) {
+    savedAreas[type].forEach(area => {
+      renderNewArea(area, type);
+    });
+  }
+}
+
+// Llamar al cargar la página y después de guardar
+document.addEventListener('DOMContentLoaded', renderAllAreas);
+$('#save').click(function() {
+  const areasToSave = [];
+
+  // Recopilar todas las áreas
+  for (const type in savedAreas) {
+    savedAreas[type].forEach(area => {
+      areasToSave.push({
+        ...area,
+        tipo_plano: type === 'diagrama' ? 'diagrama' :
+                    type === 'fotografia' ? 'fotografia' :
+                    type === 'mixtoA' ? 'mixto-A' : 'mixto-B'
+      });
+    });
+  }
+
+  if (areasToSave.length === 0) {
+    Swal.fire({ icon: 'warning', text: 'No hay áreas para guardar.' });
+    return;
+  }
+
+  // Para modo mixto, agrupar A y B si tienen el mismo ID (o crear uno nuevo)
+  const groupedAreas = [];
+  const seenIds = new Set();
+
+  for (const area of areasToSave) {
+    if (area.tipo_plano.startsWith('mixto')) {
+      const baseId = area.id; // Podrías usar un ID común
+      if (!seenIds.has(baseId)) {
+        const areaA = areasToSave.find(a => a.id === baseId && a.tipo_plano === 'mixto-A');
+        const areaB = areasToSave.find(a => a.id === baseId && a.tipo_plano === 'mixto-B');
+
+        if (areaA && areaB) {
+          groupedAreas.push({
+            id: baseId,
+            cod_ubi: localStorage.getItem('code_ubicacion'),
+            coord_perc: areaA.coord_perc,
+            coord_perc2: areaB.coord_perc,
+            tipo_plano: 'mixto',
+            created: new Date().toISOString()
+          });
+          seenIds.add(baseId);
+        }
+      }
+    } else {
+      groupedAreas.push(area);
+    }
+  }
+
+  // Enviar a API
+  fetch('/api/guardar-ubicaciones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bodega: localStorage.getItem('code_ubicacion'),
+      planograma: localStorage.getItem('plano'),
+      ubicaciones: groupedAreas
+    })
+  })
+  .then(r => r.json())
+  .then(res => {
+    Swal.fire('Éxito', 'Ubicaciones guardadas.', 'success');
+    // Limpiar localStorage temporal
+    // localStorage.removeItem('saved_areas');
+  })
+  .catch(err => {
+    Swal.fire('Error', 'No se pudieron guardar.', 'error');
+  });
+});
+
+$('#add_seccion').click(function() {
+  // Limpiar canvas y overlays
+  resetAllCanvasState();
+  renderAllAreas(); // Volver a dibujar
+});
+
+function resetAllCanvasState() {
+  // Limpiar overlays
+  ['overlay-layer-diagrama', 'overlay-layer-fotografia', 'overlay-layer-mixto-A', 'overlay-layer-mixto-B']
+    .forEach(id => {
+      const layer = document.getElementById(id);
+      if (layer) layer.innerHTML = '';
+    });
+
+  // Reiniciar zoom (si usas zoom-wrapper)
+  if (typeof zoomHandlers !== 'undefined') {
+    if (zoomHandlers.diagrama) zoomHandlers.diagrama.reset();
+    if (zoomHandlers.fotografia) zoomHandlers.fotografia.reset();
+  }
+
+  // Limpiar estado de mapeo
+  mappingState.isActive = false;
+  mappingState.currentRect = null;
+  mappingState.targetContainer = null;
+  mappingState.targetImage = null;
+  mappingState.targetType = '';
 }
 // ─────────────────────────────────────────────────────────────
 // 8. INICIALIZACIÓN
 // ─────────────────────────────────────────────────────────────
 
 function initDragEvents() {
-  const wrappers = [
-    { id: 'zoom-wrapper-diagrama', mode: 'diagrama' },
-    { id: 'zoom-wrapper-fotografia', mode: 'fotografia' }
-  ];
+    const wrappers = [
+        { id: 'zoom-wrapper-diagrama', mode: 'diagrama' },
+        { id: 'zoom-wrapper-fotografia', mode: 'fotografia' }
+    ];
 
-  wrappers.forEach(({ id, mode }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+    wrappers.forEach(({ id, mode }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
 
-    el.addEventListener('mousedown', e => {
-      if (e.button !== 0) return; // solo clic izquierdo
-      startDrag(e, mode);
+        el.addEventListener('mousedown', e => {
+            if (e.button !== 0) return; // solo clic izquierdo
+            startDrag(e, mode);
+        });
+
+        el.addEventListener('mousemove', e => {
+            if (zoomState[mode].isDragging) {
+                dragMove(e, mode);
+            }
+        });
+
+        el.addEventListener('mouseup', () => endDrag(mode));
+        el.addEventListener('mouseleave', () => endDrag(mode));
+
+        // Para evitar selección de texto
+        el.addEventListener('dragstart', e => e.preventDefault());
     });
-
-    el.addEventListener('mousemove', e => {
-      if (zoomState[mode].isDragging) {
-        dragMove(e, mode);
-      }
-    });
-
-    el.addEventListener('mouseup', () => endDrag(mode));
-    el.addEventListener('mouseleave', () => endDrag(mode));
-
-    // Para evitar selección de texto
-    el.addEventListener('dragstart', e => e.preventDefault());
-  });
 }
 $(function () {
     // Si existe data en localStorage, se usa; sino, espera dataJson externa.
     draw_coord(dataJson)
 
     // Inicializar eventos de arrastre
-initDragEvents()
+    initDragEvents()
 
-// Llamar después de que el DOM esté listo
+    // Llamar después de que el DOM esté listo
 
 });
