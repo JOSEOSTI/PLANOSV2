@@ -979,6 +979,7 @@ function switchToMixtoB() {
 }
 function saveArea(coords, type) {
   console.log('Guardando área:', coords, 'en tipo:', type);
+  const cp_element = JSON.parse(localStorage.getItem("mapped_ubic_press"));
   const coolor_cor = $(this).find('[name="color"]').val();
   const cod_ubi = localStorage.getItem('code_ubicacion');
   const id_corp = localStorage.getItem('id_corp');
@@ -1012,7 +1013,7 @@ function saveArea(coords, type) {
   // Guardar en el array correspondiente
   savedAreas[type].push(newArea);
   console.log(savedAreas);
-  
+
 
   // Persistir en localStorage
   localStorage.setItem('saved_areas', JSON.stringify(savedAreas));
