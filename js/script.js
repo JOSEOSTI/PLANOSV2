@@ -980,7 +980,6 @@ function switchToMixtoB() {
 function saveArea(coords, type) {
   console.log('Guardando área:', coords, 'en tipo:', type);
   const cp_element = JSON.parse(localStorage.getItem("mapped_ubic_press"));
-  const coolor_cor = $(this).find('[name="color"]').val();
   const cod_ubi = localStorage.getItem('code_ubicacion');
   const id_corp = localStorage.getItem('id_corp');
   const id_suc = localStorage.getItem('id_suc');
@@ -994,7 +993,8 @@ function saveArea(coords, type) {
     color: '#00ff00',
     tipo_plano
   };
-
+const coordenadas = cp_element.Planograma[0];
+const esCoordVacia = (str) => str === "0, 0, 0, 0";
   // Asignar coordenadas según tipo
   if (type === 'diagrama') {
     newArea.coord_perc = coords.join(',');
