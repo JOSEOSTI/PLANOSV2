@@ -484,7 +484,6 @@ function getPlanos() {
 // ─────────────────────────────────────────────────────────────
 // 6. CONTROL DE VISTAS (DIAGRAMA / FOTO / MIXTO)
 // ─────────────────────────────────────────────────────────────
-
 function show_plane(tipo_plano) {
 
   // Reset zoom al cambiar de vista
