@@ -11,7 +11,7 @@ body {
 #fp-canvas-container4 {
   position: relative;
   width: 100%;
-  height: 500px; /* ← Altura fija. Puedes cambiarla (ej. 70vh) */
+  height: 405px; /* ← Altura fija. Puedes cambiarla (ej. 70vh) */
   overflow: hidden;
   background-color: #000;
   border: 1px solid #333;
@@ -19,7 +19,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 15px 0;
+  margin: 10px 0;
   padding: 0;
 }
 
@@ -35,7 +35,7 @@ body {
   margin: 0;
   padding: 0;
   border: 2px solid #adb5bd;
-  background-color: rgb(150, 9, 9);
+  background-color: rgba(236, 236, 236, 0.764);
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   border-radius: 4px;
   position: absolute;
