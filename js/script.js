@@ -40,8 +40,8 @@ var dataJson = {
     },
     {
       "cod_ubi": "74-2625L",
-      "coord_perc": "598.1999998092651, 68.5999984741211, 743.1999998092651, 118.5999984741211",
-      "coord_perc2": "915.1999998092651, 231.5999984741211,957. 1999998092651, 389.5999984741211",
+      "coord_perc" :"1.1999998092651, 1.5999984741211, 1.1999998092651, 1.5999984741211",
+      "coord_perc2": "1.1999998092651, 1.5999984741211, 1.1999998092651, 1.5999984741211",
       "id": 7,
       "tipo_plano": "Seccion 1",
       "color": 0,
@@ -50,7 +50,7 @@ var dataJson = {
       "Planograma": [
         {
           "cod_ubi": "99-3450L",
-          "coord_perc": "915.1999998092651,231.5999984741211,957.1999998092651,389.5999984741211",
+          "coord_perc": "0.728252422046425, 0.1507928875932773, 0.8221484495607578, 0.2236657668642125",
           "coord_perc2": "0, 0, 0, 0",
           "id": 7,
           "color": 0
@@ -124,12 +124,7 @@ let mappingState = {
 };
 
 // Áreas guardadas (persistidas en localStorage)
-let savedAreas = {
-  diagrama: [],
-  fotografia: [],
-  mixtoA: [],
-  mixtoB: []
-};
+let savedAreas = {};
 
 function screenToCanvasCoords(canvas, clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
@@ -927,19 +922,19 @@ function endMapping(e) {
   const endX = e.clientX - rect.left;
   const endY = e.clientY - rect.top;
 
-  const x1 = Math.min(mappingState.startX, endX);
-  const y1 = Math.min(mappingState.startY, endY);
-  const x2 = Math.max(mappingState.startX, endX);
-  const y2 = Math.max(mappingState.startY, endY);
+  const x1 =( mappingState.startX, endX);
+  const y1 = (mappingState.startY, endY);
+  const x2 = (mappingState.startX, endX);
+  const y2 = (mappingState.startY, endY);
 
   const width = x2 - x1;
   const height = y2 - y1;
 
   // ✅ Validar tamaño mínimo
-  if (width < 20 || height < 20) {
-    Swal.fire({ icon: 'warning', text: 'Área demasiado pequeña. Vuelve a intentar.' });
-    return;
-  }
+  // if (width < 20 || height < 20) {
+  //   Swal.fire({ icon: 'warning', text: 'Área demasiado pequeña. Vuelve a intentar.' });
+  //   return;
+  // }
 
   // ✅ Convertir a coordenadas normalizadas (0–1)
   const img = mappingState.targetImage;
@@ -1030,44 +1025,30 @@ function saveArea(coords, type) {
   const cod_ubi = localStorage.getItem('code_ubicacion');
   const id_corp = localStorage.getItem('id_corp');
   const id_suc = localStorage.getItem('id_suc');
-  const coordsStr = coords.join(',');
+  const coordsStr = coords.join(','); // ← "x1,y1,x2,y2" (sin espacios, como en tu nuevo sistema)
 
-  // Inicializar Planograma
+  // ✅ 1. Actualizar savedAreas.Planograma (como ya haces)
   if (!savedAreas.Planograma) savedAreas.Planograma = [];
 
-  // ✅ Buscar EXISTENTE por cod_ubi + id_corp + id_suc (ignorar tipo_plano)
   const existing = savedAreas.Planograma.find(
-    a => a.cod_ubi === cod_ubi &&
-      a.id_corp === id_corp &&
-      a.id_suc === id_suc
+    a => a.cod_ubi === cod_ubi && a.id_corp === id_corp && a.id_suc === id_suc
   );
 
   if (existing) {
-    // ✅ Actualizar SOLO la coordenada correspondiente
     if (type === 'diagrama' || type === 'mixtoA') {
       existing.coord_perc = coordsStr;
     } else if (type === 'fotografia' || type === 'mixtoB') {
       existing.coord_perc2 = coordsStr;
     }
 
-    // ✅ Normalizar tipo_plano según contenido
     const hasPerc = existing.coord_perc !== "0,0,0,0";
     const hasPerc2 = existing.coord_perc2 !== "0,0,0,0";
 
-    if (hasPerc && hasPerc2) {
-      existing.tipo_plano = 'mixto';
-      existing.desc = 'Diagrama + Fotografía';
-    } else if (hasPerc) {
-      existing.tipo_plano = 'diagrama';
-      existing.desc = 'Diagrama';
-    } else if (hasPerc2) {
-      existing.tipo_plano = 'fotografia';
-      existing.desc = 'Fotografía';
-    }
+    existing.tipo_plano = (hasPerc && hasPerc2) ? 'mixto'
+      : hasPerc ? 'diagrama'
+        : hasPerc2 ? 'fotografia' : 'desconocido';
 
-    console.log('✅ Actualizada entrada existente:', existing.id);
   } else {
-    // ✅ Crear nueva entrada (solo si no existe ninguna para esta ubicación)
     const newArea = {
       id: Date.now(),
       cod_ubi,
@@ -1075,26 +1056,110 @@ function saveArea(coords, type) {
       id_suc,
       coord_perc: (type === 'diagrama' || type === 'mixtoA') ? coordsStr : "0,0,0,0",
       coord_perc2: (type === 'fotografia' || type === 'mixtoB') ? coordsStr : "0,0,0,0",
-      tipo_plano:
-        type === 'diagrama' ? 'diagrama' :
-          type === 'fotografia' ? 'fotografia' :
-            'mixto',
-      desc:
-        type === 'diagrama' ? 'Diagrama' :
-          type === 'fotografia' ? 'Fotografía' :
-            type === 'mixtoA' ? 'Mixto A' :
-              type === 'mixtoB' ? 'Mixto B' : 'N/A',
-      color: '#00ff00',
+      tipo_plano: type.includes('mixto') ? 'mixto' : type,
+      desc: `Guardado desde ${type}`,
       created: new Date().toISOString()
     };
     savedAreas.Planograma.push(newArea);
-    console.log('🆕 Nueva entrada creada:', newArea.id);
   }
 
-  // ✅ Guardar y limpiar
   localStorage.setItem('saved_areas', JSON.stringify(savedAreas));
-  console.log('💾 Guardado:', savedAreas.Planograma);
   renderAllAreas();
+
+  // ✅ 2. Sincronizar con el FLUJO ANTIGUO (para compatibilidad con #mapped-form y $4d)
+
+  // —— A. Preparar coordenadas en formato "x, y, x, y" CON ESPACIOS (como antes)
+  const coord_perc = savedAreas.Planograma.find(a => a.cod_ubi === cod_ubi && a.coord_perc)?.coord_perc?.replace(/,/g, ', ') || '0, 0, 0, 0';
+  const coord_perc2 = savedAreas.Planograma.find(a => a.cod_ubi === cod_ubi && a.coord_perc2)?.coord_perc2?.replace(/,/g, ', ') || '0, 0, 0, 0';
+
+  // —— B. Obtener ID (usar el de savedAreas, o generar uno secuencial si no existe)
+  let id = existing?.id || Date.now();
+  if (!id) {
+    id = ++AI_seq;
+    localStorage.setItem('seq', id);
+  }
+
+  const color = '#00ff00'; // o desde formulario si aplica
+
+  // —— C. Actualizar `mapped_ubic_press` como antes (para draw_coord)
+  const data_storage = { cod_ubi, coord_perc, coord_perc2, id, tipo_plano: type };
+  const planogramaEntry = {
+    cod_ubi,
+    coord_perc,
+    coord_perc2,
+    id,
+    tipo_plano: existing?.tipo_plano || type,
+    Planograma: [data_storage]
+  };
+
+  localStorage.setItem('mapped_ubic_press', JSON.stringify(planogramaEntry));
+
+  // —— D. Actualizar `data` (array por ubicación, como en tu submit antiguo)
+  let data_mba3;
+  try {
+    data_mba3 = JSON.parse(localStorage.getItem('data')) || [];
+  } catch {
+    data_mba3 = [];
+  }
+  if (!Array.isArray(data_mba3)) data_mba3 = [];
+
+  const registroIndex = data_mba3.findIndex(item => item.cod_ubi === cod_ubi);
+  let registro;
+
+  if (registroIndex === -1) {
+    registro = {
+      cod_ubi,
+      id_corp,
+      id_suc,
+      coord_perc: '0, 0, 0, 0',
+      coord_perc2: '0, 0, 0, 0',
+      id,
+      Planograma: []
+    };
+    data_mba3.push(registro);
+  } else {
+    registro = data_mba3[registroIndex];
+  }
+
+  // ✅ Actualizar SOLO el campo correspondiente (igual que en tu submit)
+  if (type === 'diagrama' || type === 'mixtoA') {
+    registro.coord_perc = coord_perc;
+  } else if (type === 'fotografia' || type === 'mixtoB') {
+    registro.coord_perc2 = coord_perc2;
+  }
+
+  registro.Planograma.push(data_storage);
+  localStorage.setItem('data', JSON.stringify(data_mba3));
+
+  // ✅ E. Llamar a $4d.fn_planograma (como en tu submit anterior)
+  const visual_choice = localStorage.getItem('tp_plano');
+  const select_visual = visual_choice === 'diagrama' ? 'P' : visual_choice === 'fotografia' ? 'F' : 'M';
+  const plano_select = localStorage.getItem('select') || '';
+
+  console.log(
+    '%c[💾 SaveArea → $4d]',
+    'color: #4CAF50; font-weight: bold;',
+    { cod_ubi, id_suc, id_corp, id, coord_perc, coord_perc2, plano_select, select_visual }
+  );
+
+  // ✅ Esta es la misma llamada que hacías en #mapped-form.submit
+  /*$4d.fn_planograma(
+    'save_coordendas',
+    cod_ubi,
+    id_suc,
+    id_corp,
+    id.toString(),
+    coord_perc,
+    coord_perc2,
+    plano_select,
+    select_visual,
+    function (data_resps) {
+      console.log('✅ $4d response:', data_resps);
+      // Opcional: actualizar UI, cerrar Swal, etc.
+    }
+  );*/
+
+  // ✅ F. Limpiar modo mapeo
   cancelMappingMode();
 }
 
